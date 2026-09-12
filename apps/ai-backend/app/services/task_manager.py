@@ -22,7 +22,7 @@ class TaskManager:
         self._subscribers[task_id] = set()
         return task_id
 
-    async def emit(self, task_id: str, data: Dict[str, Any]):
+    async def emit(self, task_id: str, data: Dict[str, Any], event_type: Optional[str] = None):
         """Update task state and broadcast event to all listeners."""
         async with self._lock:
             if task_id in self._tasks:
@@ -30,9 +30,20 @@ class TaskManager:
 
             subscribers = list(self._subscribers.get(task_id, set()))
 
-        payload = json.dumps(data)
+        payload = {
+            "data": data,
+            "event_type": event_type or ("complete" if data.get("status") == "completed" else "message")
+        }
         for queue in subscribers:
             await queue.put(payload)
+
+    def _format_sse(self, data: Dict[str, Any], event_type: Optional[str] = None) -> str:
+        raw_json = json.dumps(data)
+        out = []
+        if event_type and event_type != "message":
+            out.append(f"event: {event_type}\ndata: {raw_json}\n\n")
+        out.append(f"data: {raw_json}\n\n")
+        return "".join(out)
 
     async def subscribe(self, task_id: str):
         """Yield events for a task via an async generator."""
@@ -40,7 +51,7 @@ class TaskManager:
 
         async with self._lock:
             if task_id not in self._tasks:
-                yield f"data: {json.dumps({'status': 'failed', 'message': 'Task not found'})}\n\n"
+                yield self._format_sse({"status": "failed", "message": "Task not found"}, "error")
                 return
 
             if task_id not in self._subscribers:
@@ -51,18 +62,22 @@ class TaskManager:
 
         # If already completed or failed, send state immediately
         if current_task.get("status") in ("completed", "failed"):
-            yield f"data: {json.dumps(current_task)}\n\n"
+            event_name = "complete" if current_task.get("status") == "completed" else "error"
+            yield self._format_sse(current_task, event_name)
             return
 
-        # Otherwise yield initial status
-        yield f"data: {json.dumps(current_task)}\n\n"
+        # Otherwise yield initial start event
+        yield self._format_sse(current_task, "start")
 
         try:
             while True:
-                data = await queue.get()
-                yield f"data: {data}\n\n"
-                parsed = json.loads(data)
-                if parsed.get("status") in ("completed", "failed", "error"):
+                item = await queue.get()
+                data = item["data"]
+                event_type = item.get("event_type")
+
+                yield self._format_sse(data, event_type)
+
+                if data.get("status") in ("completed", "failed", "error"):
                     break
         finally:
             async with self._lock:

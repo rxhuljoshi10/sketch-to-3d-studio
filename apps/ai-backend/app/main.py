@@ -67,14 +67,14 @@ async def process_3d_generation(task_id: str, image_b64: str, prompt: Optional[s
             "status": "completed",
             "content": code,
             "message": "3D model generated successfully!"
-        })
+        }, event_type="complete")
     except Exception as e:
         logger.error(f"Failed processing 3D task {task_id}: {e}")
-        await task_manager.emit(task_id, {"status": "failed", "message": str(e)})
+        await task_manager.emit(task_id, {"status": "failed", "message": str(e)}, event_type="error")
 
 async def process_3d_edit(task_id: str, existing_code: str, image_b64: str, prompt: Optional[str]):
     try:
-        await task_manager.emit(task_id, {"status": "in_progress", "message": "Analyzing edit instructions..."})
+        await task_manager.emit(task_id, {"status": "in_progress", "message": "Analyzing edit instructions..."}, event_type="start")
 
         edited_code = await asyncio.to_thread(gemini_service.edit_3d_code, existing_code, image_b64, prompt)
 
@@ -82,32 +82,40 @@ async def process_3d_edit(task_id: str, existing_code: str, image_b64: str, prom
             "status": "completed",
             "content": edited_code,
             "message": "3D model edited successfully!"
-        })
+        }, event_type="complete")
     except Exception as e:
         logger.error(f"Failed processing edit task {task_id}: {e}")
-        await task_manager.emit(task_id, {"status": "failed", "message": str(e)})
+        await task_manager.emit(task_id, {"status": "failed", "message": str(e)}, event_type="error")
 
 async def process_image_improvement(task_id: str, image_b64: str, prompt: Optional[str]):
     try:
-        await task_manager.emit(task_id, {"status": "in_progress", "message": "Enhancing sketch with generative FLUX..."})
+        await task_manager.emit(task_id, {"status": "in_progress", "message": "Enhancing sketch with generative FLUX..."}, event_type="start")
 
         result = await image_service.improve_sketch(image_b64, prompt)
 
         await task_manager.emit(task_id, {
             "status": "completed",
             "image": result["image"],
+            "images": [
+                {
+                    "image_base64": result["image"],
+                    "width": result.get("width", 800),
+                    "height": result.get("height", 600),
+                }
+            ],
             "width": result.get("width", 800),
             "height": result.get("height", 600),
             "message": "Sketch enhanced successfully!"
-        })
+        }, event_type="complete")
     except Exception as e:
         logger.error(f"Failed processing image task {task_id}: {e}")
-        await task_manager.emit(task_id, {"status": "failed", "message": str(e)})
+        await task_manager.emit(task_id, {"status": "failed", "message": str(e)}, event_type="error")
 
 # --- API Endpoints ---
 
 @app.get("/")
 async def root():
+    gemini_service._setup_client()
     return {
         "status": "online",
         "service": "Scribble3D AI Backend",

@@ -12,6 +12,8 @@ from app.prompts import (
     CODE_PARSER_SYSTEM_PROMPT,
 )
 
+from dotenv import load_dotenv
+
 logger = logging.getLogger("gemini_service")
 
 class GeminiService:
@@ -20,6 +22,7 @@ class GeminiService:
         self._setup_client()
 
     def _setup_client(self):
+        load_dotenv(override=True)
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key and api_key.strip() and api_key != "your_gemini_api_key_here":
             genai.configure(api_key=api_key.strip())
