@@ -9,7 +9,7 @@ export function Vibe3DCodeButton() {
   const { addToast } = useToasts()
   const [is3DModelSelected, setIs3DModelSelected] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [thinkingEnabled, setThinkingEnabled] = useState(true)
+  const [thinkingEnabled, setThinkingEnabled] = useState(false)
 
   // Update state whenever selection changes
   useEffect(() => {
@@ -40,10 +40,20 @@ export function Vibe3DCodeButton() {
   const handleClick = useCallback(async () => {
     if (isProcessing) return; // Prevent multiple clicks
 
+    // Check that something is selected first
+    const selectedShapes = editor.getSelectedShapes();
+    if (selectedShapes.length === 0) {
+      addToast({
+        icon: 'warning-triangle',
+        title: 'Nothing selected',
+        description: 'Select your sketch first, then click Make 3D.',
+      });
+      return;
+    }
+
     try {
       setIsProcessing(true);
 
-      const selectedShapes = editor.getSelectedShapes();
       const model3dShape = selectedShapes.find(shape => shape.type === 'model3d') as Model3DPreviewShape;
 
       if (is3DModelSelected && !thinkingEnabled) {

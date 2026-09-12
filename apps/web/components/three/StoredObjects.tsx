@@ -264,33 +264,28 @@ const createObject3DFromStored = (data: StoredObject): THREE.Object3D => {
 };
 
 export function StoredObjects() {
-  const { objects, updateObject } = useObjectStore();
+  const { objects } = useObjectStore();
   const { scene } = useThree();
   const objectRefs = useRef<Map<string, THREE.Object3D>>(new Map());
-  const firstRender = useRef(true);
   
   // Convert stored objects to Three.js objects
+  // NOTE: No firstRender guard — objects must always be created when the
+  // Canvas mounts (e.g. switching to the 3D World tab re-mounts the Canvas).
   const threeObjects = useMemo(() => {
-    // Skip recreation on first render to avoid useEffect loop
-    if (firstRender.current) {
-      firstRender.current = false;
-      return [];
-    }
-    
     console.log("Creating objects from storage, count:", objects.length);
     
     return objects.map(obj => {
-      // Check if we already have this object in the refs
+      // Reuse existing Three.js object if we already built it
       const existingObj = objectRefs.current.get(obj.id);
       if (existingObj) {
-        // Just update transforms instead of recreating
+        // Just sync transforms
         existingObj.position.set(...obj.position);
         existingObj.rotation.set(...obj.rotation);
         existingObj.scale.set(...obj.scale);
         return existingObj;
       }
       
-      // Create new object if not in refs
+      // Build the Three.js object from stored data
       if (obj.type === 'mesh') {
         return createMeshFromStored(obj);
       } else if (obj.type === 'group') {
@@ -302,32 +297,33 @@ export function StoredObjects() {
     }).filter(Boolean) as THREE.Object3D[];
   }, [objects]);
   
-  // Add objects to scene
+  // Add objects to scene and keep it in sync
   useEffect(() => {
-    if (threeObjects.length === 0) return;
+    console.log("Syncing objects to scene, count:", threeObjects.length);
     
-    console.log("Adding objects to scene, count:", threeObjects.length);
-    
-    // Add new objects to scene
+    // Add any new objects not yet in the scene
     threeObjects.forEach(obj => {
-      if (obj && !scene.getObjectById(obj.id)) {
+      if (!obj) return;
+      // Use uuid string for lookup — getObjectById uses numeric id which won't match
+      const alreadyInScene = scene.getObjectByProperty('uuid', obj.uuid);
+      if (!alreadyInScene) {
         console.log(`Adding object to scene: ${obj.uuid}`);
         scene.add(obj);
-        objectRefs.current.set(obj.userData.id, obj);
       }
+      objectRefs.current.set(obj.userData.id || obj.uuid, obj);
     });
     
-    // Capture the current ref value
+    // Capture snapshot for cleanup
     const currentRefs = new Map(objectRefs.current);
+    const currentIds = new Set(threeObjects.map(o => o.userData.id || o.uuid));
     
-    // Cleanup
     return () => {
-      // Only remove objects that are not in the current set
+      // Remove objects that are no longer in the store
       currentRefs.forEach((obj, id) => {
-        if (!threeObjects.some(newObj => newObj.userData.id === id)) {
+        if (!currentIds.has(id)) {
           console.log(`Removing object from scene: ${id}`);
           scene.remove(obj);
-          currentRefs.delete(id);
+          objectRefs.current.delete(id);
         }
       });
     };
