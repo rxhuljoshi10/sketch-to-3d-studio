@@ -265,7 +265,7 @@ async function waitForCodeGeneration(taskId: string): Promise<{ content: string 
 
 async function waitForTaskResult(taskId: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const eventSource = new WebSocket(`http://localhost:8000/api/trellis/task/ws/${taskId}`);
+    const eventSource = new WebSocket(`ws://localhost:8000/api/trellis/task/ws/${taskId}`);
 
     eventSource.onmessage = (event) => {
       const data = JSON.parse((event as MessageEvent).data);
