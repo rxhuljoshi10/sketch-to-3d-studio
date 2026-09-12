@@ -1,123 +1,114 @@
-# Scribble3D 🎨✨
-### Turn your sketches into 3D objects and worlds — No 3D skills required!
+# Sketch-to-3D Studio 🎨✨
+### Transform 2D sketches into interactive 3D objects and virtual worlds — in real time.
 
-[![License: AGPL](https://img.shields.io/badge/License-AGPL-blue.svg)](LICENSE)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
-[![Three.js](https://img.shields.io/badge/Three.js-r170-orange.svg)](https://threejs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![React 19](https://img.shields.io/badge/React-19-blue.svg?style=flat-square&logo=react)](https://react.dev/)
+[![Three.js](https://img.shields.io/badge/Three.js-r182-orange.svg?style=flat-square&logo=three.js)](https://threejs.org/)
+[![Turborepo](https://img.shields.io/badge/Turborepo-Monorepo-ef4444.svg?style=flat-square&logo=turborepo)](https://turbo.build/)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 ---
 
-## 📺 Project Demo
+## 📺 Demo
 
 https://github.com/user-attachments/assets/a564f2db-37d2-413a-9ae3-6a2391c6723a
 
 ---
 
+## 🚀 Overview
 
-
-
-## 🚀 The Vision
-Scribble3D is an AI-powered creative suite that removes the technical barriers to 3D modeling. Whether you're a professional designer or someone who just likes to doodle, Scribble3D allows you to transform simple sketches into rich, interactive 3D environments in seconds.
-
-## ✨ Key Features
-
-### 1. Dual AI Generation Engines
-- **Standard Mode (Claude 3.7)**: Generates procedural Three.js JavaScript code. This creates lightweight, editable models that you can refine using procedural logic.
-- **Thinking Mode (Trellis)**: Utilizes deep-reasoning foundation models to generate high-fidelity GLTF assets from complex drawings. Perfect for organic or highly detailed shapes.
-
-### 2. Magic "Wow" Workflow
-- **Automatic Teleportation**: Once your 3D model is ready, the app automatically switches your view from the 2D canvas to the 3D world.
-- **Instant Scene Integration**: Generated objects are parsed and placed into your persistence-backed 3D world immediately.
-
-### 3. Iterative Sketch-to-Edit
-- Select any 3D model in your world, draw a modification on the 2D canvas, and click **"Edit 3D"**. Claude will intelligently update the Three.js code or Trellis will re-generate the model to match your vision.
-
-### 4. Interactive 3D World
-- **First-Person Controls**: Explore your world with standard WASD controls.
-- **Premium Aesthetics**: Features glassmorphism UI, interactive grids, and a dynamic Ocean environment for your models to live in.
-- **Multi-device Support**: Includes optimized joystick controls for mobile and tablet browsing.
+**Sketch-to-3D Studio** is an AI-powered creative web platform designed to eliminate the steep learning curve of 3D modeling. Whether you are an artist, game designer, architect, or casual doodler, this studio allows you to sketch ideas on a 2D canvas and turn them into interactive, walkable 3D environments.
 
 ---
 
-## 🛠️ Tech Stack
+## ✨ Key Features
 
-**Frontend:**
-- **Framework**: Next.js 15 (Turbopack)
-- **2D Canvas**: [tldraw](https://tldraw.dev/)
-- **3D Engine**: Three.js + [React Three Fiber](https://r3.docs.pmnd.rs/)
+### 1. 2D Sketching Studio ([tldraw](https://tldraw.dev/))
+- **Instant Drawing Canvas**: Fast, responsive vector sketching engine.
+- **Rich Tooling**: Pencils, shapes, color palettes, fill settings, stroke sizing, and undo/redo history.
+- **Sketch Enhancer**: AI-assisted doodle cleanup and concept enhancement.
+
+### 2. Interactive 3D World (Three.js & React Three Fiber)
+- **First-Person Walkthrough**: Explore the 3D scene using standard **WASD** keyboard controls and mouse look.
+- **Atmospheric Environment**: Infinite grid terrain, dynamic skybox, lighting, ocean shaders, and coordinate gizmos.
+- **Object Manipulation**: Select, inspect, and transform models directly inside the 3D viewport.
+- **Instant Mode Switching**: Switch between the 2D sketchpad and 3D viewport with a single click.
+
+### 3. AI Generation Engine (Coming / Under Active Integration)
+- **Procedural 3D Code Generation**: Converts hand-drawn sketches into lightweight, editable Three.js procedural meshes using multimodal vision LLMs (Google Gemini).
+- **Iterative Sketch-to-Edit**: Select any placed 3D object, sketch modifications on the 2D canvas, and update the existing 3D geometry.
+- **GLTF / Mesh Export**: Download scenes and individual models as standard `.gltf` / `.glb` files for use in Blender, Unity, or Unreal Engine.
+
+---
+
+## 🛠️ Architecture & Tech Stack
+
+```
+sketch-to-3d-studio/
+├── apps/
+│   ├── web/              # Next.js 16 (Turbopack) frontend + tldraw canvas + Three.js
+│   ├── https-backend/    # Express API server
+│   └── ws-backend/       # WebSocket server for real-time multiplayer / tasks
+└── packages/
+    ├── db/               # Prisma 7 database client
+    ├── ui/               # Shared UI component library
+    └── typescript-config/# Shared TSConfigs
+```
+
+- **Frontend**: Next.js 16 (Turbopack), React 19, TypeScript
+- **Canvas**: [tldraw](https://tldraw.dev/)
+- **3D Graphics**: Three.js, React Three Fiber (`@react-three/fiber`), Drei (`@react-three/drei`)
 - **State Management**: Zustand
-- **Styling**: Vanilla CSS with Modern Glassmorphism
-
-**Backend:**
-- **API Framework**: FastAPI (Python 3.10+)
-- **Task Queue**: Celery + Redis
-- **AI Providers**: Claude 3.7 (Anthropic), Gemini (Google), LLaMA 3.3 (Cerebras), Trellis (PiAPI)
+- **Monorepo Tooling**: Turborepo, pnpm
+- **AI Vision Pipeline**: Google Gemini API (Multimodal Vision $\to$ Three.js code)
 
 ---
 
 ## 🏃 Quick Start
 
 ### Prerequisites
-- Node.js 18+
-- Python 3.10+
-- Redis (running locally or via Docker)
+- [Node.js](https://nodejs.org/) 18+ or 20+
+- [pnpm](https://pnpm.io/) 9+ (or use `npx pnpm`)
 
-### 1. Clone the repository
+### 1. Clone the Repository
 ```bash
-git clone https://github.com/Ashutoshx7/Scribble3D-Sketch-to-3rd-.git
-cd Scribble3D-Sketch-to-3rd-
+git clone https://github.com/rxhuljoshi10/sketch-to-3d-studio.git
+cd sketch-to-3d-studio
 ```
 
-### 2. Backend Setup
+### 2. Install Dependencies
 ```bash
-cd vibe-draw-main/vibe-draw-main/backend
-
-# Create environment file
-cp .env.example .env
-# Edit .env with your API keys (ANTHROPIC_API_KEY, GOOGLE_API_KEY, CEREBRAS_API_KEY, TRELLIS_API_KEY)
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start Redis & Worker (Separate terminals)
-# Terminal 1: Start Redis
-docker run -p 6379:6379 redis
-
-# Terminal 2: Start API Server
-uvicorn app.main:app --reload --port 8000
-
-# Terminal 3: Start Celery Worker
-celery -A app.core.celery_app worker --loglevel=info -P solo
+npx pnpm install
 ```
 
-### 3. Frontend Setup
+### 3. Start the Development Server
 ```bash
-cd Scribble3D
-
-# Install dependencies
-pnpm install
-
-# Start the development server
-pnpm --filter web dev
+npx pnpm --filter web dev
 ```
 
-Visit `http://localhost:3000` to start creating!
+Visit **`http://localhost:3000`** in your browser:
+- **Landing Page**: `http://localhost:3000`
+- **Studio Canvas & 3D World**: `http://localhost:3000/canvas`
 
 ---
 
 ## 🎨 How to Use
-1. **Sketch**: Use the 2D canvas to draw your object.
-2. **Improve**: (Optional) Use the "Improve Drawing" button to let Gemini polish your sketch.
-3. **Make 3D**: Click the glowing button. 
-   - **Brain Icon ON**: High-fidelity Foundation models.
-   - **Brain Icon OFF**: Editable Three.js code.
-4. **Explore**: Once the 3D world loads, use **WASD** to walk and **Mouse** to look around.
-5. **Manage**: Select objects and press **Backspace** to delete or use the Transform Controls to move them.
+
+1. **Draw**: Open the canvas and use the pencil and shape tools to draw your object.
+2. **Make 3D**: Click the **"Make 3D"** button in the top navigation bar.
+3. **Explore**: Toggle to the **"3D World"** tab to see your creation in space. Use **WASD** to walk and **Mouse** to look around.
+4. **Export**: Export individual meshes or the entire world as `.gltf`.
+
+---
+
+## 👤 Author
+
+**Rahul Joshi**
+- GitHub: [@rxhuljoshi10](https://github.com/rxhuljoshi10)
+- Repository: [sketch-to-3d-studio](https://github.com/rxhuljoshi10/sketch-to-3d-studio)
 
 ---
 
 ## 📜 License
-This project is licensed under the [AGPL License](LICENSE).
 
---
+This project is licensed under the [AGPL-3.0 License](LICENSE).
