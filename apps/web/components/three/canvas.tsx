@@ -146,6 +146,10 @@ export default function ThreeJSCanvas({
 }: {
   visible?: boolean
 }) {
+  const { objects, removeObject, clearObjects } = useObjectStore()
+  const { selectedObject, setSelectedObject } = useAppStore()
+  const [showObjectsManager, setShowObjectsManager] = useState(false)
+
   const exportScene = () => {
     // @ts-ignore - Access the scene from the global variable
     const scene = window.__threeScene
@@ -193,35 +197,6 @@ export default function ThreeJSCanvas({
     );
   }
 
-  // Function to test importing a GLTF model
-  const testGltfImport = async () => {
-    try {
-      const { addObjectWithGltf } = useObjectStore.getState();
-      // Example GLTF files from the public glTF samples repository
-      const sampleModels = [
-        'https://img.theapi.app/temp/cd0b9c83-b5e3-4445-8007-b0e4c29d0d9b.glb'
-      ];
-
-      // Select a random model from the samples
-      const randomUrl = sampleModels[Math.floor(Math.random() * sampleModels.length)];
-      console.log('Loading GLTF model from:', randomUrl);
-
-      if (randomUrl) {
-        const result = await addObjectWithGltf(randomUrl);
-
-        if (result) {
-          console.log('GLTF import successful:', result);
-        } else {
-          console.error('GLTF import failed');
-          alert('Failed to import GLTF model');
-        }
-      }
-    } catch (error) {
-      console.error('Error testing GLTF import:', error);
-      alert('Error testing GLTF import: ' + (error as Error).message);
-    }
-  }
-
   return (
     <>
       <Canvas
@@ -229,19 +204,13 @@ export default function ThreeJSCanvas({
           display: visible ? 'block' : 'none',
         }}
         gl={{
-          // Preserve the WebGL context to prevent it from being killed
-          // when there are too many WebGL instances
           powerPreference: 'high-performance',
           preserveDrawingBuffer: true,
-          // Keep the priority high for this WebGL context
           antialias: true,
-          // Attempt to make this context more important than others
           failIfMajorPerformanceCaveat: false,
         }}
       >
-        {/* {visible && <Perf position="top-left" />} */}
         <ambientLight intensity={Math.PI / 2} />
-        {/* Add directional light for better material rendering */}
         <directionalLight
           position={[10, 10, 5]}
           intensity={Math.PI * 2}
@@ -249,13 +218,11 @@ export default function ThreeJSCanvas({
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
         />
-        {/* Add a secondary fill light from opposite direction */}
         <directionalLight
           position={[-5, 5, -2]}
           intensity={Math.PI}
           color="#8088ff"
         />
-        {/* Add a ground fill light for better overall illumination */}
         <hemisphereLight
           args={["#ffffff", "#8888ff", 0.7]}
           position={[0, 10, 0]}
@@ -273,9 +240,6 @@ export default function ThreeJSCanvas({
         {visible && <FirstPersonController />}
         {visible && <OceanAndGridManager />}
         <Bvh>
-          {/* Center pole removed */}
-          {/* <ExampleCube />
-          <ExampleGroup /> */}
           <StoredObjects />
         </Bvh>
         <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
@@ -289,45 +253,271 @@ export default function ThreeJSCanvas({
         <>
           <FocusDetector />
           <Crosshair />
-          {/* Button to export scene as gltf */}
-          <button
-            onClick={exportScene}
-            style={{
-              position: 'absolute',
-              bottom: '20px',
-              left: '20px',
-              padding: '8px 16px',
-              background: '#4a5568',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              zIndex: 100
-            }}
-          >
-            Export Scene
-          </button>
 
-          {/* Test button for GLTF import */}
-          {/* <button 
-            onClick={testGltfImport}
+          {/* Floating Action Buttons */}
+          <div style={{ position: 'absolute', bottom: '20px', left: '20px', display: 'flex', gap: '8px', zIndex: 100 }}>
+            {/* Button to export scene as gltf */}
+            <button
+              onClick={exportScene}
+              style={{
+                padding: '8px 14px',
+                background: '#334155',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '12px',
+                boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Export Scene
+            </button>
+
+            {/* Button to open Scene Objects manager */}
+            <button
+              onClick={() => setShowObjectsManager(prev => !prev)}
+              style={{
+                padding: '8px 14px',
+                background: showObjectsManager ? '#0284c7' : '#1e293b',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span>📦 Objects ({objects.length})</span>
+            </button>
+          </div>
+
+          {/* Scene Objects Manager Panel */}
+          {showObjectsManager && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '68px',
+                left: '20px',
+                width: '320px',
+                maxHeight: '380px',
+                background: 'rgba(15, 23, 42, 0.94)',
+                backdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '12px',
+                padding: '14px',
+                color: '#f8fafc',
+                zIndex: 150,
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                fontFamily: 'system-ui, -apple-system, sans-serif'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>
+                <div style={{ fontWeight: 700, fontSize: '14px', color: '#38bdf8' }}>
+                  📦 Scene Objects ({objects.length})
+                </div>
+                <button
+                  onClick={() => setShowObjectsManager(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    padding: '2px 6px',
+                    borderRadius: '4px'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {objects.length === 0 ? (
+                <div style={{ color: '#94a3b8', fontSize: '12px', padding: '16px 0', textAlign: 'center', lineHeight: 1.5 }}>
+                  No 3D objects in the scene.<br />
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>In the 2D Canvas, click the '+' icon on a preview card to add it here.</span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowY: 'auto', maxHeight: '230px', paddingRight: '4px' }}>
+                  {objects.map((obj, index) => {
+                    const isSelected = selectedObject?.uuid === obj.id || selectedObject?.userData?.id === obj.id;
+                    return (
+                      <div
+                        key={obj.id || index}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          background: isSelected ? 'rgba(56, 189, 248, 0.15)' : 'rgba(30, 41, 59, 0.6)',
+                          border: isSelected ? '1px solid rgba(56, 189, 248, 0.5)' : '1px solid rgba(255, 255, 255, 0.05)',
+                          borderRadius: '6px',
+                          padding: '6px 10px',
+                          fontSize: '12px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', maxWidth: '170px' }}>
+                          <span style={{ fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                            {obj.name || `Object ${index + 1}`}
+                          </span>
+                          <span style={{ fontSize: '10px', color: '#64748b' }}>
+                            {obj.type || 'model'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            onClick={() => {
+                              const threeObj = window.__objectReferences?.get(obj.id);
+                              if (threeObj) setSelectedObject(threeObj);
+                            }}
+                            style={{
+                              background: isSelected ? '#0284c7' : '#334155',
+                              border: 'none',
+                              color: 'white',
+                              borderRadius: '4px',
+                              padding: '3px 7px',
+                              fontSize: '11px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {isSelected ? 'Selected' : 'Select'}
+                          </button>
+                          <button
+                            onClick={() => removeObject(obj.id)}
+                            title="Remove object from 3D World"
+                            style={{
+                              background: '#dc2626',
+                              border: 'none',
+                              color: 'white',
+                              borderRadius: '4px',
+                              padding: '3px 7px',
+                              fontSize: '11px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {objects.length > 0 && (
+                <button
+                  onClick={() => {
+                    clearObjects();
+                    setSelectedObject(null);
+                  }}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    color: '#fca5a5',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    width: '100%',
+                    marginTop: '2px'
+                  }}
+                >
+                  Clear All Objects
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Floating Selected Object Bar */}
+          {selectedObject && (
+            <div
+              style={{
+                position: 'fixed',
+                top: '75px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'rgba(15, 23, 42, 0.88)',
+                backdropFilter: 'blur(12px)',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                borderRadius: '8px',
+                padding: '7px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                zIndex: 9999,
+                color: 'white',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
+                fontFamily: 'system-ui, sans-serif',
+                fontSize: '12px'
+              }}
+            >
+              <span>Selected: <strong style={{ color: '#38bdf8' }}>{selectedObject.userData?.name || 'Object'}</strong></span>
+              <button
+                onClick={() => {
+                  const targetId = selectedObject.uuid || selectedObject.userData?.id;
+                  if (targetId) {
+                    removeObject(targetId);
+                  }
+                  setSelectedObject(null);
+                }}
+                style={{
+                  background: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '3px 9px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                🗑️ Delete Object
+              </button>
+            </div>
+          )}
+
+          {/* 3D World Controls Guide HUD */}
+          <div
             style={{
               position: 'absolute',
               bottom: '20px',
-              left: '150px',
-              padding: '8px 16px',
-              background: '#38a169',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              zIndex: 100
+              left: '260px',
+              background: 'rgba(15, 23, 42, 0.75)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '8px',
+              padding: '8px 14px',
+              color: '#e2e8f0',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              zIndex: 100,
+              pointerEvents: 'none',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+              fontFamily: 'system-ui, -apple-system, sans-serif'
             }}
           >
-            Test GLTF Import
-          </button> */}
+            <div><span style={{ color: '#38bdf8', fontWeight: 600 }}>🖱️ Click Viewport:</span> Mouse Look (<kbd style={{ background: '#334155', padding: '1px 4px', borderRadius: '3px', fontSize: '10px' }}>Esc</kbd> exit)</div>
+            <div style={{ color: '#475569' }}>|</div>
+            <div><span style={{ color: '#a78bfa', fontWeight: 600 }}>Move:</span> <kbd style={{ background: '#334155', padding: '1px 4px', borderRadius: '3px', fontSize: '10px' }}>W</kbd> <kbd style={{ background: '#334155', padding: '1px 4px', borderRadius: '3px', fontSize: '10px' }}>A</kbd> <kbd style={{ background: '#334155', padding: '1px 4px', borderRadius: '3px', fontSize: '10px' }}>S</kbd> <kbd style={{ background: '#334155', padding: '1px 4px', borderRadius: '3px', fontSize: '10px' }}>D</kbd></div>
+            <div style={{ color: '#475569' }}>|</div>
+            <div><span style={{ color: '#34d399', fontWeight: 600 }}>Up:</span> <kbd style={{ background: '#334155', padding: '1px 4px', borderRadius: '3px', fontSize: '10px' }}>Space</kbd> / <kbd style={{ background: '#334155', padding: '1px 4px', borderRadius: '3px', fontSize: '10px' }}>E</kbd></div>
+            <div style={{ color: '#475569' }}>|</div>
+            <div><span style={{ color: '#f472b6', fontWeight: 600 }}>Down:</span> <kbd style={{ background: '#334155', padding: '1px 4px', borderRadius: '3px', fontSize: '10px' }}>Shift</kbd> / <kbd style={{ background: '#334155', padding: '1px 4px', borderRadius: '3px', fontSize: '10px' }}>Q</kbd></div>
+          </div>
         </>
       )}
     </>

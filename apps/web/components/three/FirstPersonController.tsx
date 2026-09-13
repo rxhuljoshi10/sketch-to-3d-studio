@@ -10,6 +10,8 @@ interface MovementState {
   backward: boolean
   left: boolean
   right: boolean
+  up: boolean
+  down: boolean
 }
 
 export function FirstPersonController() {
@@ -54,7 +56,9 @@ export function FirstPersonController() {
     forward: false,
     backward: false,
     left: false,
-    right: false
+    right: false,
+    up: false,
+    down: false,
   })
 
   const direction = useRef(new Vector3())
@@ -136,59 +140,91 @@ export function FirstPersonController() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isUIFocused || isCodeEditorOpen || (e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') {
+      if (
+        isUIFocused || 
+        isCodeEditorOpen || 
+        (e.target as HTMLElement)?.tagName === 'INPUT' || 
+        (e.target as HTMLElement)?.tagName === 'TEXTAREA' ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
         return;
       }
       
-      switch (e.code) {
-        case 'KeyW':
-          setMovement(prev => ({ ...prev, forward: true }))
-          break
-        case 'KeyS':
-          setMovement(prev => ({ ...prev, backward: true }))
-          break
-        case 'KeyA':
-          setMovement(prev => ({ ...prev, left: true }))
-          break
-        case 'KeyD':
-          setMovement(prev => ({ ...prev, right: true }))
-          break
-        case 'Escape':
-          if (document.pointerLockElement === gl.domElement && document.exitPointerLock) {
-            document.exitPointerLock();
-          }
-          break
+      const code = e.code;
+      const key = e.key;
+      
+      if (code === 'KeyW' || key === 'w' || key === 'W' || code === 'ArrowUp') {
+        setMovement(prev => ({ ...prev, forward: true }));
+      } else if (code === 'KeyS' || key === 's' || key === 'S' || code === 'ArrowDown') {
+        setMovement(prev => ({ ...prev, backward: true }));
+      } else if (code === 'KeyA' || key === 'a' || key === 'A' || code === 'ArrowLeft') {
+        setMovement(prev => ({ ...prev, left: true }));
+      } else if (code === 'KeyD' || key === 'd' || key === 'D' || code === 'ArrowRight') {
+        setMovement(prev => ({ ...prev, right: true }));
+      } else if (code === 'Space' || key === ' ' || code === 'KeyE' || key === 'e' || key === 'E') {
+        e.preventDefault();
+        setMovement(prev => ({ ...prev, up: true }));
+      } else if (
+        code === 'ShiftLeft' || 
+        code === 'ShiftRight' || 
+        key === 'Shift' || 
+        code === 'KeyQ' || 
+        key === 'q' || 
+        key === 'Q' || 
+        code === 'KeyC' || 
+        key === 'c' || 
+        key === 'C'
+      ) {
+        setMovement(prev => ({ ...prev, down: true }));
+      } else if (code === 'Escape') {
+        if (document.pointerLockElement === gl.domElement && document.exitPointerLock) {
+          document.exitPointerLock();
+        }
       }
-    }
+    };
     
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (isUIFocused || isCodeEditorOpen || (e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') {
-        return;
-      }
+      const code = e.code;
+      const key = e.key;
       
-      switch (e.code) {
-        case 'KeyW':
-          setMovement(prev => ({ ...prev, forward: false }))
-          break
-        case 'KeyS':
-          setMovement(prev => ({ ...prev, backward: false }))
-          break
-        case 'KeyA':
-          setMovement(prev => ({ ...prev, left: false }))
-          break
-        case 'KeyD':
-          setMovement(prev => ({ ...prev, right: false }))
-          break
+      if (code === 'KeyW' || key === 'w' || key === 'W' || code === 'ArrowUp') {
+        setMovement(prev => ({ ...prev, forward: false }));
+      } else if (code === 'KeyS' || key === 's' || key === 'S' || code === 'ArrowDown') {
+        setMovement(prev => ({ ...prev, backward: false }));
+      } else if (code === 'KeyA' || key === 'a' || key === 'A' || code === 'ArrowLeft') {
+        setMovement(prev => ({ ...prev, left: false }));
+      } else if (code === 'KeyD' || key === 'd' || key === 'D' || code === 'ArrowRight') {
+        setMovement(prev => ({ ...prev, right: false }));
+      } else if (code === 'Space' || key === ' ' || code === 'KeyE' || key === 'e' || key === 'E') {
+        setMovement(prev => ({ ...prev, up: false }));
+      } else if (
+        code === 'ShiftLeft' || 
+        code === 'ShiftRight' || 
+        key === 'Shift' || 
+        code === 'KeyQ' || 
+        key === 'q' || 
+        key === 'Q' || 
+        code === 'KeyC' || 
+        key === 'c' || 
+        key === 'C'
+      ) {
+        setMovement(prev => ({ ...prev, down: false }));
       }
-    }
+    };
+
+    const handleWindowBlur = () => {
+      setMovement({ forward: false, backward: false, left: false, right: false, up: false, down: false });
+    };
     
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleWindowBlur);
     
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-    }
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
   }, [isUIFocused, isCodeEditorOpen, gl.domElement])
 
   useEffect(() => {
@@ -250,11 +286,11 @@ export function FirstPersonController() {
         const right = data.vector.x > 0.2
         
         // Update movement based on joystick position
-        setMovement({ forward, backward, left, right })
+        setMovement(prev => ({ ...prev, forward, backward, left, right }))
       })
       
       joystick.on('end', () => {
-        setMovement({ forward: false, backward: false, left: false, right: false })
+        setMovement({ forward: false, backward: false, left: false, right: false, up: false, down: false })
       })
       
       joystickInstanceRef.current = joystick
@@ -330,12 +366,14 @@ export function FirstPersonController() {
     direction.current.x = Number(movement.right) - Number(movement.left)
     direction.current.normalize()
     
-    if (movement.forward || movement.backward || movement.left || movement.right) {
+    if (movement.forward || movement.backward || movement.left || movement.right || movement.up || movement.down) {
       const forward = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion)
       forward.normalize()
       
       const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion)
       right.normalize()
+
+      const upVector = new Vector3(0, 1, 0)
       
       velocity.current.set(0, 0, 0)
       
@@ -345,6 +383,8 @@ export function FirstPersonController() {
       if (movement.backward) velocity.current.sub(forward.multiplyScalar(frameSpeed))
       if (movement.right) velocity.current.add(right.multiplyScalar(frameSpeed))
       if (movement.left) velocity.current.sub(right.multiplyScalar(frameSpeed))
+      if (movement.up) velocity.current.add(upVector.clone().multiplyScalar(frameSpeed))
+      if (movement.down) velocity.current.sub(upVector.clone().multiplyScalar(frameSpeed))
       
       camera.position.add(velocity.current)
     }

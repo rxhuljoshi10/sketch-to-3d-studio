@@ -102,17 +102,7 @@ export async function vibe3DCode(editor: Editor, shapeId: TLShapeId | null = nul
         },
       })
 
-      // Automatic GLTF loading after generation
-      try {
-        console.log("Dispatching add-gltf-object event for:", gltfUrl);
-        // Since we can't use hooks directly in this file, we'll use a custom event
-        window.dispatchEvent(new CustomEvent('add-gltf-object', {
-          detail: { url: gltfUrl, shapeId }
-        }));
-      } catch (error) {
-        console.error("Failed to add GLTF to 3D world:", error);
-      }
-
+      console.log("GLTF model generated and preview updated on canvas");
       return;
     } else {
       // Send the image and text to the backend
@@ -143,7 +133,7 @@ export async function vibe3DCode(editor: Editor, shapeId: TLShapeId | null = nul
         const threeJsCode = processThreeJsCode(generatedCodeData.content);
 
         // Make sure we have code
-        if (threeJsCode.length < 100) {
+        if (threeJsCode.length < 50) {
           console.warn(generatedCodeData.content)
           throw Error('Could not generate a 3D model from those wireframes.')
         }
@@ -158,16 +148,7 @@ export async function vibe3DCode(editor: Editor, shapeId: TLShapeId | null = nul
           },
         })
 
-        console.log(`Response received from backend`)
-
-        // Automatic addition to 3D world
-        try {
-          window.dispatchEvent(new CustomEvent('add-code-object', {
-            detail: { code: threeJsCode, shapeId, isParsed: false }
-          }));
-        } catch (error) {
-          console.error("Failed to add code object to 3D world:", error);
-        }
+        console.log(`3D code model generated and preview updated on canvas`);
       } else {
         throw Error('No code was generated')
       }
@@ -310,42 +291,31 @@ async function waitForTaskResult(taskId: string): Promise<string> {
 
 
 function processThreeJsCode(code: string): string {
-  let processedCode = code;
+  if (!code) return '';
+  let processedCode = code.trim();
 
   // Extract code from markdown code blocks if present
-  const jsPattern = /```javascript\s*\n([\s\S]*?)```/;
-  const jsMatch = processedCode.match(jsPattern);
-
-  if (jsMatch && jsMatch[1]) {
-    processedCode = jsMatch[1];
-  } else {
-    // Try to find any code block with or without language specification
-    const codePattern = /```(?:\w*\s*)?\n([\s\S]*?)```/;
-    const codeMatch = processedCode.match(codePattern);
-    if (codeMatch && codeMatch[1]) {
-      processedCode = codeMatch[1];
-    } else {
-      // If no markdown code blocks found, try to find script tags
-      const scriptPattern = /<script[^>]*>([\s\S]*?)<\/script>/;
-      const scriptMatch = processedCode.match(scriptPattern);
-      if (scriptMatch && scriptMatch[1]) {
-        processedCode = scriptMatch[1];
-      }
-    }
+  const codeBlockMatch = processedCode.match(/```(?:html|javascript|js)?\s*\n([\s\S]*?)```/);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    processedCode = codeBlockMatch[1].trim();
   }
 
-  // Process the code to adapt to the non-ES modules environment
+  // If it's a complete HTML document, preserve it completely!
+  if (/<!doctype/i.test(processedCode) || /<html/i.test(processedCode) || /<body/i.test(processedCode)) {
+    return processedCode;
+  }
+
+  // If it contains a script block with real content (not just an empty script tag)
+  const scriptMatch = processedCode.match(/<script[^>]*>([\s\S]+?)<\/script>/);
+  if (scriptMatch && scriptMatch[1] && scriptMatch[1].trim().length > 30) {
+    processedCode = scriptMatch[1].trim();
+  }
+
+  // Adapt imports if any
   processedCode = processedCode.replace(/^import\s+.*?from\s+['"].*?['"];?\s*$/gm, '');
   processedCode = processedCode.replace(/^import\s+\*\s+as\s+.*?\s+from\s+['"].*?['"];?\s*$/gm, '');
   processedCode = processedCode.replace(/^import\s+['"].*?['"];?\s*$/gm, '');
   processedCode = processedCode.replace(/^const\s+.*?\s*=\s*require\(['"].*?['"]\);?\s*$/gm, '');
 
-  processedCode = processedCode.replace(/import\s+\*\s+as\s+THREE\s+from\s+['"]three['"];?\s*/g, '');
-  processedCode = processedCode.replace(/import\s+{\s*OrbitControls\s*}\s+from\s+['"]three\/addons\/controls\/OrbitControls\.js['"];?\s*/g, '');
-  processedCode = processedCode.replace(/import\s+{\s*[^}]*\s*}\s+from\s+['"]three['"];?\s*/g, '');
-  processedCode = processedCode.replace(/import\s+THREE\s+from\s+['"]three['"];?\s*/g, '');
-
-  processedCode = processedCode.replace(/THREE\.OrbitControls/g, 'OrbitControls');
-
-  return processedCode;
+  return processedCode.trim();
 }

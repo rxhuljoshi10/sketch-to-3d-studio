@@ -148,95 +148,42 @@ class GeminiService:
         return None
 
     def _generate_fallback_code(self, label: str) -> str:
-        """Produces a vibrant, self-contained Three.js interactive preview scene."""
-        return f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {{ margin: 0; overflow: hidden; background: #0b0f19; }}
-        canvas {{ width: 100%; height: 100%; display: block; }}
-    </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-</head>
-<body>
-<script>
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(3, 3, 5);
+        """Returns a vibrant pure-JS Three.js group creation function (no HTML, no renderer)."""
+        return """const group = new THREE.Group();
 
-    const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: true }});
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.shadowMap.enabled = true;
-    document.body.appendChild(renderer.domElement);
+// Base body
+const baseGeo = new THREE.CylinderGeometry(0.8, 1.0, 1.4, 32);
+const baseMat = new THREE.MeshStandardMaterial({
+    color: 0x7c3aed,
+    roughness: 0.25,
+    metalness: 0.2
+});
+const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+baseMesh.position.y = 0.7;
+baseMesh.castShadow = true;
+group.add(baseMesh);
 
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 2.0;
+// Accent top
+const topGeo = new THREE.SphereGeometry(0.7, 32, 32);
+const topMat = new THREE.MeshStandardMaterial({
+    color: 0x38bdf8,
+    roughness: 0.1,
+    metalness: 0.8
+});
+const topMesh = new THREE.Mesh(topGeo, topMat);
+topMesh.position.y = 1.6;
+topMesh.castShadow = true;
+group.add(topMesh);
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambientLight);
-    const dirLight = new THREE.DirectionalLight(0x90b0ff, 1.5);
-    dirLight.position.set(5, 10, 7);
-    dirLight.castShadow = true;
-    scene.add(dirLight);
+// Ring detail
+const ringGeo = new THREE.TorusGeometry(0.9, 0.08, 16, 64);
+const ringMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3 });
+const ring = new THREE.Mesh(ringGeo, ringMat);
+ring.position.y = 1.1;
+ring.rotation.x = Math.PI / 2;
+group.add(ring);
 
-    // --- MODEL CREATION ---
-    const modelGroup = new THREE.Group();
-
-    // Base body
-    const baseGeo = new THREE.CylinderGeometry(0.8, 1.0, 1.4, 32);
-    const baseMat = new THREE.MeshStandardMaterial({{
-        color: 0x7c3aed,
-        roughness: 0.25,
-        metalness: 0.2
-    }});
-    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-    baseMesh.position.y = 0.7;
-    baseMesh.castShadow = true;
-    modelGroup.add(baseMesh);
-
-    // Accent top
-    const topGeo = new THREE.SphereGeometry(0.7, 32, 32);
-    const topMat = new THREE.MeshStandardMaterial({{
-        color: 0x38bdf8,
-        roughness: 0.1,
-        metalness: 0.8
-    }});
-    const topMesh = new THREE.Mesh(topGeo, topMat);
-    topMesh.position.y = 1.6;
-    topMesh.castShadow = true;
-    modelGroup.add(topMesh);
-
-    // Ring detail
-    const ringGeo = new THREE.TorusGeometry(0.9, 0.08, 16, 64);
-    const ringMat = new THREE.MeshStandardMaterial({{ color: 0xf59e0b, roughness: 0.3 }});
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.position.y = 1.1;
-    ring.rotation.x = Math.PI / 2;
-    modelGroup.add(ring);
-
-    scene.add(modelGroup);
-
-    function animate() {{
-        requestAnimationFrame(animate);
-        controls.update();
-        renderer.render(scene, camera);
-    }}
-    animate();
-
-    window.addEventListener('resize', () => {{
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    }});
-</script>
-</body>
-</html>"""
+return group;"""
 
     def _generate_fallback_object_code(self) -> str:
         """Returns clean executable Three.js object definition code."""

@@ -212,7 +212,7 @@ export function ObjectHighlighter({ onObjectSelected, excludeObjects = [] }: Obj
               
               if (directGroupChild) {
                 targetObject = directGroupChild;
-              } else {
+              } else if (directChildren[0]) {
                 // Otherwise just pick the first direct child
                 targetObject = directChildren[0];
               }
@@ -223,7 +223,7 @@ export function ObjectHighlighter({ onObjectSelected, excludeObjects = [] }: Obj
             
             if (directGroupChild) {
               targetObject = directGroupChild;
-            } else {
+            } else if (directChildren[0]) {
               targetObject = directChildren[0];
             }
           }
@@ -474,7 +474,7 @@ export function ObjectHighlighter({ onObjectSelected, excludeObjects = [] }: Obj
                     if (directGroupChild) {
                       targetObject = directGroupChild;
                       console.log("Fallback to direct GROUP child:", targetObject.userData?.name || 'unnamed');
-                    } else {
+                    } else if (directChildren[0]) {
                       // Otherwise just pick the first direct child
                       targetObject = directChildren[0];
                       console.log("Fallback to first direct child:", targetObject.userData?.name || 'unnamed');
@@ -487,7 +487,7 @@ export function ObjectHighlighter({ onObjectSelected, excludeObjects = [] }: Obj
                   if (directGroupChild) {
                     targetObject = directGroupChild;
                     console.log("No raycast hit, using first GROUP child");
-                  } else {
+                  } else if (directChildren[0]) {
                     targetObject = directChildren[0];
                     console.log("No raycast hit, using first child");
                   }
@@ -659,7 +659,7 @@ export function ObjectHighlighter({ onObjectSelected, excludeObjects = [] }: Obj
         });
       
       // Handle object under cursor
-      if (intersects.length > 0) {
+      if (intersects.length > 0 && intersects[0]) {
         const intersectedObject = intersects[0].object;
         
         // Find top-level user-created parent to use as hovered object

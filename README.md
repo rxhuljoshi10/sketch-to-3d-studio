@@ -167,35 +167,110 @@ Before generating 3D, you can let AI polish your rough drawing into rendered con
 
 1. **Select** the shapes or drawing you want to convert (drag to box-select all, or **Ctrl+A**).
 2. Click **🔮 Make 3D** in the top navigation bar.
-3. A loading card appears to the right of your selection.
-4. The AI (Google Gemini) analyses your sketch and writes Three.js code to build a 3D model.
-5. When done, a **3D preview card** appears on the canvas — you can double-click it to rotate and zoom the model.
+3. A loading spinner card appears to the right of your selection — **you stay on the 2D Canvas**.
+4. The AI (Google Gemini) analyses your sketch and generates Three.js code to build a 3D model.
+5. When done, a **3D preview card** appears on the canvas — you can double-click it to rotate and zoom the model interactively.
 
 > The AI backend must be running (`python apps/ai-backend/run_backend.py`) for this to work.  
 > Check **http://localhost:8000/** — it should return `"gemini_active": true`.
 
 ---
 
-### Step 5 — View in the 3D World
+### Step 5 — Push to the 3D World
 
-After generation completes, the model is **automatically added** to the 3D scene.
+After the 3D preview renders on the 2D canvas, you decide when and what goes into the 3D World.
 
-1. Click the **🌍 3D World** tab at the top.
-2. Your generated object appears in the scene.
-3. Use **first-person controls** to explore:
+1. Look for the icon buttons on the **right edge** of the preview card.
+2. Click the **+** icon to **add that model to the 3D World** scene (a toast confirmation appears).
+3. Click the **🌍 3D World** tab at the top to explore the scene.
+4. Click anywhere on the 3D viewport to enter **first-person mode**.
+
+---
+
+## 🎮 3D World Controls — Complete Reference
+
+### 🏃 Camera Movement & Flying
+
+You can move and fly around the 3D world anytime while on the **3D World** tab.
+
+| Key / Input | Action | Notes |
+|---|---|---|
+| `W` or `↑` (Arrow Up) | Move **Forward** | Moves in the direction the camera is facing |
+| `S` or `↓` (Arrow Down) | Move **Backward** | Retreats backwards |
+| `A` or `←` (Arrow Left) | Strafe **Left** | Slides sideways to the left |
+| `D` or `→` (Arrow Right) | Strafe **Right** | Slides sideways to the right |
+| `Space` or `E` | Fly **Up** (Ascend) | Rises vertically along world Y-axis |
+| `Shift` (Left/Right) or `Q` or `C` | Fly **Down** (Descend) | Drops vertically along world Y-axis |
+| `Escape` | **Unlock Cursor** | Releases mouse look so you can interact with UI |
+
+---
+
+### 🖱️ Mouse Controls & First-Person Look
+
+| Action | What it does |
+|---|---|
+| **Left-Click Viewport** | **Locks the cursor** to enter first-person mouse look (FPS style). Move your mouse in any direction to look up, down, left, and right. |
+| **Press `Escape`** | Unlocks the cursor so you can click buttons, tabs, or export menus. |
+| **On-screen HUD** | A quick-reference controls badge is displayed along the bottom of the 3D viewport for instant reminders. |
+
+---
+
+### 📱 Touch / Mobile Controls
+
+On touch-screen or mobile devices:
+- **Left Virtual Joystick**: Touch and drag to move forward, backward, left, or right.
+- **Right Virtual Joystick**: Touch and drag to rotate the camera pitch and yaw.
+
+---
+
+### 🎯 3D Object Selection & Transformations
+
+| Action | Effect |
+|---|---|
+| **Left-click any 3D object** | **Selects** the object and displays the Transform Gizmo. |
+| **Gizmo Modes** | Use the mode selector to switch between: |
+| &nbsp;&nbsp;• **Translate (Move)** | Drag the red (X), green (Y), or blue (Z) arrows to reposition. |
+| &nbsp;&nbsp;• **Rotate** | Drag the circular colored rings to spin the model. |
+| &nbsp;&nbsp;• **Scale** | Drag the cube handles to enlarge or shrink the model. |
+| `Delete` or `Backspace` | **Deletes** the currently selected 3D object from the scene. |
+| **Click empty space** | Deselects the current object and hides the gizmo. |
+
+---
+
+### 🔄 2D ↔ 3D Synchronization & Deletion
+
+- **Manual Addition via + Button**: Clicking **Make 3D** keeps you on the 2D Canvas. When the preview renders, click the **+** icon on the card's right edge to add it to the 3D World.
+- **Remove from 3D World (🗑️ Button)**: Click the **🗑️** trash icon on any 2D preview card to remove the corresponding object from the 3D World without deleting the 2D card.
+- **Sync Deletion**: Deleting the 3D preview card from the 2D Canvas (via `Delete` key, right-click, or eraser) **automatically cleans up and removes** the corresponding object from the 3D World.
+- **Objects Manager Panel**: In the 3D World, click the **📦 Objects** button (bottom-left) to open a panel listing all objects in the scene. Each row has a **Select** button and a red 🗑️ delete button. A **Clear All Objects** button removes everything at once.
+
+---
+
+### ⚙️ Settings Panel (Leva — Top Right Corner)
+
+Open or view the controls panel in the top-right corner to tweak real-time settings:
+- **Movement Speed** (5–30 units/s): Adjust how fast WASD and Space/Shift move you through the world.
+- **Mouse Sensitivity**: Tune the camera rotation responsiveness when looking around.
+- **Show Ocean**: Switch between the standard Infinite Ground Grid and the animated realistic 3D Ocean shader.
+
+### 📸 Preview Card Controls (2D Canvas)
+
+Each 3D preview card on the **2D Canvas** has interactive controls when you **double-click** it to enter edit mode:
 
 | Control | Action |
 |---|---|
-| `W` | Move forward |
-| `S` | Move backward |
-| `A` | Strafe left |
-| `D` | Strafe right |
-| `Mouse drag` | Look around |
-| `Space` | Move up |
-| `Shift` | Move down |
-| Scroll | Zoom (when not in first-person) |
+| **Left-drag** | Rotate the model |
+| **Right-drag** | Pan around the model |
+| **Scroll** | Zoom in / out |
 
-> Click anywhere on the 3D viewport to activate first-person mode. Press **Escape** to exit.
+And icon buttons on its **right-side border**:
+
+| Icon | Action |
+|---|---|
+| **+** (plus) | Add the model into the 3D World scene |
+| **🗑️** (trash) | Remove this model from the 3D World (keeps the 2D preview card) |
+| **↩** (redo) | Regenerate the 3D model from the original sketch |
+| **⧉** (copy) | Copy the raw Three.js code to clipboard |
 
 ---
 
@@ -251,13 +326,17 @@ Visit **[http://localhost:3000/signin](http://localhost:3000/signin)** or **[htt
 
 | Problem | Solution |
 |---|---|
-| "Make 3D" does nothing | Make sure the AI backend is running and `gemini_active: true` at http://localhost:8000 |
-| 3D World is empty after generation | Ensure the backend is connected; refresh the page and try again |
-| `GEMINI_API_KEY` errors in backend | Add your key to `apps/ai-backend/.env` |
-| `pip install` fails | Upgrade pip: `python -m pip install --upgrade pip` |
-| Port 8000 in use | Kill the other process or change the port in `run_backend.py` |
+| **"Make 3D" does nothing** | Ensure AI backend is running; check `gemini_active: true` at http://localhost:8000 |
+| **Preview card is blank** | Hard-refresh the browser (`Ctrl+Shift+R`) to pick up the latest fix |
+| **3D World is empty after Make 3D** | Click the **+** icon on the 2D preview card to push the model to the 3D World |
+| **Deleted 2D shape but 3D object still shows** | Use the 🗑️ icon on the preview card, or open **📦 Objects** panel in the 3D World to delete it |
+| **Space/Shift not moving camera vertically** | Click on the 3D viewport first to enter mouse-look mode, then press Space / Shift |
+| **`GEMINI_API_KEY` error in backend** | Add your key to `apps/ai-backend/.env` |
+| **`pip install` fails** | Upgrade pip: `python -m pip install --upgrade pip` |
+| **Port 8000 in use** | Kill the other process or change the port in `run_backend.py` |
 
 ---
+
 
 ## 👤 Author
 

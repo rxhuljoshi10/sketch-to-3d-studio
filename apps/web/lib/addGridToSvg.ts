@@ -8,8 +8,9 @@ export function addGridToSvg(
 ) {
 	const { color = '#00F', size = 100, labels = true } = opts
 
-	const [x, y, w, h] = svg
-		.getAttribute('viewBox')!
+	const [x = 0, y = 0, w = 0, h = 0] = (
+		svg.getAttribute('viewBox') || '0 0 1000 1000'
+	)
 		.split(' ')
 		.map((v) => +v)
 

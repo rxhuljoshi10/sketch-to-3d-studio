@@ -25,6 +25,7 @@ export type Model3DPreviewShape = TLBaseShape<
     w: number
     h: number
     selectedShapes: TLShape[]
+    objectId?: string
   }
 >
 
@@ -40,6 +41,7 @@ export class Model3DPreviewShapeUtil extends BaseBoxShapeUtil<Model3DPreviewShap
       w: (960 * 2) / 3,
       h: (540 * 2) / 3,
       selectedShapes: [],
+      objectId: '',
     }
   }
 
@@ -48,6 +50,30 @@ export class Model3DPreviewShapeUtil extends BaseBoxShapeUtil<Model3DPreviewShap
   override canResize = () => true
   override canBind = () => false
   override canUnmount = () => false
+
+  onBeforeDelete = (shape: Model3DPreviewShape) => {
+    try {
+      const objectStore = useObjectStore.getState();
+      const map = (window as any).__shapeToObjectMap;
+      const mappedId = map ? map.get(shape.id) : null;
+      const targetObj = objectStore.objects.find(
+        o => o.id === shape.props.objectId || o.id === mappedId || (o as any).uuid === mappedId || o.userData?.tldrawShapeId === shape.id
+      );
+      if (targetObj) {
+        console.log("Removing 3D object because 2D shape was deleted:", targetObj.id);
+        objectStore.removeObject(targetObj.id);
+      } else if (shape.props.objectId) {
+        objectStore.removeObject(shape.props.objectId);
+      } else if (mappedId) {
+        objectStore.removeObject(mappedId);
+      }
+      if (map) {
+        map.delete(shape.id);
+      }
+    } catch (err) {
+      console.error("Error cleaning up 3D object on shape delete:", err);
+    }
+  }
 
   override component(shape: Model3DPreviewShape) {
     const isEditing = useIsEditing(shape.id)
@@ -73,83 +99,45 @@ export class Model3DPreviewShapeUtil extends BaseBoxShapeUtil<Model3DPreviewShap
       };
     }, [shape.id]);
 
-    // Listen for add-gltf-object events
+    // Clean up 3D object when 2D shape is deleted from the canvas
     useEffect(() => {
-      const handleAddGltfObject = (event: Event) => {
-        const customEvent = event as CustomEvent;
-        if (customEvent.detail && customEvent.detail.url) {
-          // Check if this event is for this specific shape
-          if (customEvent.detail.shapeId && customEvent.detail.shapeId !== shape.id) {
-            return; // Skip if this event is for a different shape
-          }
-
-          if (activeTab !== 'threejs') {
-            setActiveTab('threejs');
-            // Wait for tab switch to complete before adding object
-            setTimeout(() => {
-              addObjectWithGltf(customEvent.detail.url);
-            }, 100);
-          } else {
-            // Already on threejs tab, add object directly
-            addObjectWithGltf(customEvent.detail.url);
-          }
-        }
-      };
-
-      window.addEventListener('add-gltf-object', handleAddGltfObject);
-
       return () => {
-        window.removeEventListener('add-gltf-object', handleAddGltfObject);
-      };
-    }, [activeTab, setActiveTab, addObjectWithGltf, shape.id]);
-
-    // Listen for add-code-object events
-    useEffect(() => {
-      const handleAddCodeObject = async (event: Event) => {
-        const customEvent = event as CustomEvent;
-        if (customEvent.detail && customEvent.detail.code) {
-          // Check if this event is for this specific shape
-          if (customEvent.detail.shapeId && customEvent.detail.shapeId !== shape.id) {
-            return; // Skip if this event is for a different shape
-          }
-
-          let objectCode = customEvent.detail.code;
-
-          // If it's a raw Three.js scene code, it might need parsing first
-          const isParsed = customEvent.detail.isParsed;
-          if (!isParsed) {
-            try {
-              const res = await fetch("http://localhost:8000/api/cerebras/parse", {
-                method: "POST",
-                body: objectCode
-              });
-              const actualCode = await res.json();
-              objectCode = actualCode.content;
-            } catch (e) {
-              console.error("Failed to parse code for automatic addition:", e);
-              return;
+        setTimeout(() => {
+          try {
+            const editor = (window as any).__tldraw_editor;
+            // If the shape is no longer present in the tldraw store, it was deleted!
+            if (editor && !editor.getShape(shape.id)) {
+              console.log("2D shape was deleted from canvas, cleaning up 3D object:", shape.id);
+              const objectStore = useObjectStore.getState();
+              const map = (window as any).__shapeToObjectMap;
+              const mappedId = map ? map.get(shape.id) : null;
+              const targetObj = objectStore.objects.find(
+                o => o.id === shape.props.objectId || o.id === mappedId || (o as any).uuid === mappedId || o.userData?.tldrawShapeId === shape.id
+              );
+              if (targetObj) {
+                objectStore.removeObject(targetObj.id);
+              } else if (shape.props.objectId) {
+                objectStore.removeObject(shape.props.objectId);
+              } else if (mappedId) {
+                objectStore.removeObject(mappedId);
+              }
+              if (map) map.delete(shape.id);
             }
+          } catch (err) {
+            console.warn("Error during shape unmount cleanup:", err);
           }
-
-          if (activeTab !== 'threejs') {
-            setActiveTab('threejs');
-            setTimeout(() => {
-              addObjectFromCode(objectCode);
-            }, 100);
-          } else {
-            addObjectFromCode(objectCode);
-          }
-        }
+        }, 50);
       };
+    }, [shape.id, shape.props.objectId]);
 
-      window.addEventListener('add-code-object', handleAddCodeObject);
+    const rawCode = shape.props.threeJsCode ? shape.props.threeJsCode.trim() : '';
+    let cleanCode = rawCode;
+    const codeBlockMatch = cleanCode.match(/^```(?:html|javascript|js)?\s*\n([\s\S]*?)```$/);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      cleanCode = codeBlockMatch[1].trim();
+    }
+    const isFullHtml = /<!doctype/i.test(cleanCode) || /<html/i.test(cleanCode) || /<body/i.test(cleanCode);
 
-      return () => {
-        window.removeEventListener('add-code-object', handleAddCodeObject);
-      };
-    }, [activeTab, setActiveTab, addObjectFromCode, shape.id]);
-
-    // Prepare the HTML with the Three.js code embedded
     const htmlToUse = shape.props.isGltf && shape.props.gltfUrl
       ? `<!DOCTYPE html>
 <html>
@@ -219,171 +207,90 @@ export class Model3DPreviewShapeUtil extends BaseBoxShapeUtil<Model3DPreviewShap
     
     // Enhanced lighting setup
     // Ambient light for global illumination
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
     
-    // Main directional light (sun-like)
-    const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    mainLight.position.set(10, 10, 10);
-    // mainLight.castShadow = true;
-    // Improve shadow quality
-    mainLight.shadow.mapSize.width = 2048;
-    mainLight.shadow.mapSize.height = 2048;
-    mainLight.shadow.camera.near = 0.5;
-    mainLight.shadow.camera.far = 50;
-    mainLight.shadow.bias = -0.0001;
-    scene.add(mainLight);
+    // Main directional light (sun)
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLight.position.set(5, 10, 7);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    scene.add(dirLight);
     
-    // Secondary fill light from the opposite side
-    const fillLight = new THREE.DirectionalLight(0xffffee, 0.8);
-    fillLight.position.set(-10, 5, -10);
+    // Fill light from opposite direction
+    const fillLight = new THREE.DirectionalLight(0x88bbff, 0.6);
+    fillLight.position.set(-5, 0, -5);
     scene.add(fillLight);
     
-    // Rim light to highlight edges
-    const rimLight = new THREE.DirectionalLight(0xeeeeff, 0.6);
-    rimLight.position.set(0, -10, -15);
-    scene.add(rimLight);
+    // Back light for rim lighting
+    const backLight = new THREE.DirectionalLight(0xffeedd, 0.4);
+    backLight.position.set(0, -5, -5);
+    scene.add(backLight);
     
-    // Soft light from below for better dimension
-    const bottomLight = new THREE.DirectionalLight(0xeeeeff, 0.4);
-    bottomLight.position.set(0, -10, 0);
-    scene.add(bottomLight);
-    
-    // Add hemisphere light for more natural outdoor-like lighting
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.7);
-    hemiLight.position.set(0, 20, 0);
-    scene.add(hemiLight);
-    
-    // Environment lighting for reflections (if model has reflective materials)
-    renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
-    
-    // Add a circular ground plate
-    const groundRadius = 10;
-    const groundGeometry = new THREE.CircleGeometry(groundRadius, 72);
-    // Rotate the ground plate to be horizontal (it's vertical by default)
-    groundGeometry.rotateX(-Math.PI / 2);
-    
-    // Create a nice material for the ground
-    const groundMaterial = new THREE.MeshStandardMaterial({
-      color: 0x888888,
-      roughness: 0.8,
-      metalness: 0.2,
-      side: THREE.DoubleSide,
-    });
-    
-    const groundPlate = new THREE.Mesh(groundGeometry, groundMaterial);
-    groundPlate.receiveShadow = true;
-    groundPlate.position.y = -2; // Slightly below origin to avoid z-fighting
-    scene.add(groundPlate);
-    
-    // Load GLTF model
+    // Load GLTF Model
     const loader = new GLTFLoader();
-    loader.load('${shape.props.gltfUrl}', (gltf) => {
-      const model = gltf.scene;
-      
-      // Center model
-      const box = new THREE.Box3().setFromObject(model);
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      
-      // Reset model position to center
-      model.position.x = -center.x;
-      model.position.y = -center.y;
-      model.position.z = -center.z;
-      
-      // Scale model to fit view
-      const maxDim = Math.max(size.x, size.y, size.z);
-      if (maxDim > 0) {
+    loader.load(
+      '${shape.props.gltfUrl}',
+      (gltf) => {
+        const model = gltf.scene;
+        
+        // Center and scale the model
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        
+        // Reset position to center
+        model.position.x = -center.x;
+        model.position.y = -center.y;
+        model.position.z = -center.z;
+        
+        // Scale to fit nicely in view
+        const maxDim = Math.max(size.x, size.y, size.z);
         const scale = 3 / maxDim;
         model.scale.set(scale, scale, scale);
-      }
-      
-      // Add spotlight directly aimed at the model for better visibility
-      const spotLight = new THREE.SpotLight(0xffffff, 1.5);
-      spotLight.position.set(0, 10, 0);
-      spotLight.angle = Math.PI / 4;
-      spotLight.penumbra = 0.1;
-      spotLight.decay = 0;
-      spotLight.distance = 50;
-      spotLight.castShadow = true;
-      spotLight.shadow.bias = -0.0001;
-      spotLight.shadow.mapSize.width = 1024;
-      spotLight.shadow.mapSize.height = 1024;
-      scene.add(spotLight);
-      
-      // Target the spotlight at the model's center
-      spotLight.target = model;
-      scene.add(spotLight.target);
-      
-      // Enhance model materials for better visibility
-      model.traverse((node) => {
-        if (node instanceof THREE.Mesh) {
-          if (node.material) {
-            // For each material in the model, increase brightness
-            const modifyMaterial = (material) => {
-              // Increase the overall brightness
-              if (material.color) {
-                // Store original color for reference
-                if (!material.userData) material.userData = {};
-                material.userData.originalColor = material.color.clone();
-                
-                // Brighten the color (multiply RGB values to make it brighter)
-                const brightenFactor = 10;  // Adjust as needed
-                material.color.r = Math.min(material.color.r * brightenFactor, 1);
-                material.color.g = Math.min(material.color.g * brightenFactor, 1);
-                material.color.b = Math.min(material.color.b * brightenFactor, 1);
-              }
-              
-              // Add slight emissive glow to make model stand out
-              if (material.emissive) {
-                material.emissiveIntensity = 0.4;
-                material.emissive = new THREE.Color(0x333333);
-              }
-              
-              // Increase material contrast
-              if (material.roughness !== undefined) {
-                material.roughness = Math.max(material.roughness * 0.8, 0.1);
-              }
-              
-              // Enhance specularity for more visual pop
-              if (material.metalness !== undefined) {
-                material.metalness = Math.min(material.metalness + 0.1, 1.0);
-              }
-            };
+        
+        // Enable shadows and enhance materials
+        model.traverse((node) => {
+          if (node.isMesh) {
+            node.castShadow = true;
+            node.receiveShadow = true;
             
-            // Apply to individual material or material array
-            if (Array.isArray(node.material)) {
-              node.material.forEach(modifyMaterial);
-            } else {
-              modifyMaterial(node.material);
+            // If the material is basic, upgrade to standard for better lighting
+            if (node.material) {
+              // Ensure material reacts to light
+              if (node.material.type === 'MeshBasicMaterial') {
+                const prevMaterial = node.material;
+                node.material = new THREE.MeshStandardMaterial({
+                  color: prevMaterial.color,
+                  map: prevMaterial.map,
+                  roughness: 0.5,
+                  metalness: 0.1
+                });
+              }
+              // Adjust roughness for better appearance
+              if ('roughness' in node.material) {
+                node.material.roughness = 0.4;
+              }
             }
           }
-        }
-      });
-      
-      scene.add(model);
-      
-      // Add a subtle outline effect to make the model stand out
-      const edgeGlow = new THREE.Group();
-      const edgeLight1 = new THREE.PointLight(0xffffcc, 0.6, 10);
-      edgeLight1.position.set(2, 2, 2);
-      const edgeLight2 = new THREE.PointLight(0xccffff, 0.6, 10);
-      edgeLight2.position.set(-2, 1, -2);
-      edgeGlow.add(edgeLight1, edgeLight2);
-      scene.add(edgeGlow);
-    }, 
-    // Progress callback
-    (xhr) => {
-      console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-    },
-    // Error callback
-    (error) => {
-      console.error('Error loading GLTF model:', error);
-    });
+        });
+        
+        scene.add(model);
+        
+        // Adjust camera position based on model size
+        camera.position.z = 5;
+        controls.reset();
+      },
+      (xhr) => {
+        console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+      },
+      (error) => {
+        console.error('An error happened loading the GLTF:', error);
+      }
+    );
     
-    // Handle window resize
+    // Window resize handler
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
@@ -400,16 +307,17 @@ export class Model3DPreviewShapeUtil extends BaseBoxShapeUtil<Model3DPreviewShap
     animate();
     
     // Prevent zooming issues
-    document.body.addEventListener('wheel', e => { 
+    window.addEventListener('wheel', e => { 
         if (!e.ctrlKey) return; 
         e.preventDefault(); 
-        return 
     }, { passive: false });
     </script>
 </body>
 </html>`
-      : shape.props.threeJsCode
-        ? `<!DOCTYPE html>
+      : cleanCode
+        ? isFullHtml
+          ? cleanCode
+          : `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
@@ -422,49 +330,221 @@ export class Model3DPreviewShapeUtil extends BaseBoxShapeUtil<Model3DPreviewShap
             overflow: hidden; 
             width: 100%; 
             height: 100%;
-            background-color: transparent;
+            background: radial-gradient(circle at center, #1e2038 0%, #0a0a14 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         canvas { 
             display: block; 
             width: 100% !important; 
             height: 100% !important;
         }
-        /* Help tooltip */
         .help-tooltip {
             position: absolute;
             bottom: 10px;
             left: 10px;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-family: sans-serif;
-            font-size: 12px;
-            opacity: 0.7;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #cbd5e1;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-family: system-ui, sans-serif;
+            font-size: 11px;
             pointer-events: none;
+            line-height: 1.5;
+            backdrop-filter: blur(4px);
         }
     </style>
 </head>
 <body>
     <div class="help-tooltip">
-        <p>Left-click + drag: Rotate</p>
-        <p>Right-click + drag: Pan</p>
-        <p>Scroll: Zoom</p>
+        <div>🖱️ Drag: Rotate</div>
+        <div>🖱️ Right-click: Pan</div>
+        <div>🖱️ Scroll: Zoom</div>
     </div>
     <script type="module">
-    import * as THREE from "https://esm.sh/three";
-    import { OrbitControls } from "https://esm.sh/three/examples/jsm/controls/OrbitControls.js";
-    ${shape.props.threeJsCode}
-      // Prevent zooming issues
-      document.body.addEventListener('wheel', e => { 
-          if (!e.ctrlKey) return; 
-          e.preventDefault(); 
-          return 
-      }, { passive: false });
+    import * as THREE from "https://esm.sh/three@0.160.0";
+    import { OrbitControls } from "https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+
+    // Set globally for any code styles
+    window.THREE = THREE;
+    THREE.OrbitControls = OrbitControls;
+    window.OrbitControls = OrbitControls;
+
+    const rawSnippet = ${JSON.stringify(cleanCode)};
+    const hasOwnRenderer = /new\\s+THREE\\.WebGLRenderer/i.test(rawSnippet) || /document\\.body\\.appendChild/i.test(rawSnippet);
+
+    if (hasOwnRenderer) {
+      try {
+        const scriptFn = new Function('THREE', 'OrbitControls', rawSnippet);
+        scriptFn(THREE, OrbitControls);
+      } catch (err) {
+        console.error("Custom script execution error:", err);
+      }
+    } else {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 1.5, 4);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.shadowMap.enabled = true;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.2;
+      document.body.appendChild(renderer.domElement);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 1.5;
+
+      // Studio Lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+      scene.add(ambientLight);
+
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      keyLight.position.set(5, 8, 5);
+      keyLight.castShadow = true;
+      scene.add(keyLight);
+
+      const fillLight = new THREE.DirectionalLight(0x88bbff, 0.7);
+      fillLight.position.set(-5, 3, -3);
+      scene.add(fillLight);
+
+      const rimLight = new THREE.DirectionalLight(0xffaa66, 0.5);
+      rimLight.position.set(0, -4, -4);
+      scene.add(rimLight);
+
+      const modelGroup = new THREE.Group();
+      scene.add(modelGroup);
+
+      let returnedObject = null;
+      try {
+        const userFn = new Function('THREE', 'scene', 'camera', 'renderer', 'controls', 'modelGroup', rawSnippet);
+        returnedObject = userFn(THREE, scene, camera, renderer, controls, modelGroup);
+      } catch (e1) {
+        console.warn("Function execution warning, trying eval fallback:", e1);
+        try {
+          eval(rawSnippet);
+        } catch (e2) {
+          console.error("Eval error:", e2);
+        }
+      }
+
+      if (returnedObject && returnedObject instanceof THREE.Object3D) {
+        if (returnedObject !== modelGroup && !modelGroup.children.includes(returnedObject)) {
+          scene.add(returnedObject);
+        }
+      }
+
+      // Auto-fit camera to model
+      try {
+        const targetBox = new THREE.Box3().setFromObject(scene);
+        if (!targetBox.isEmpty()) {
+          const center = targetBox.getCenter(new THREE.Vector3());
+          const size = targetBox.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          if (maxDim > 0 && maxDim !== Infinity) {
+            controls.target.copy(center);
+            camera.position.set(center.x, center.y + maxDim * 0.4, center.z + maxDim * 2.2);
+            controls.update();
+          }
+        }
+      } catch (boxErr) {
+        console.warn("Box framing error:", boxErr);
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    window.addEventListener('wheel', e => { 
+        if (!e.ctrlKey) return; 
+        e.preventDefault(); 
+    }, { passive: false });
     </script>
 </body>
 </html>`
         : ''
+
+    const handlePushTo3DWorld = async () => {
+      if (shape.props.isGltf && shape.props.gltfUrl) {
+        const obj = await addObjectWithGltf(shape.props.gltfUrl);
+        if (obj) {
+          obj.userData.tldrawShapeId = shape.id;
+          if (!(window as any).__shapeToObjectMap) {
+            (window as any).__shapeToObjectMap = new Map();
+          }
+          (window as any).__shapeToObjectMap.set(shape.id, obj.uuid);
+          toast.addToast({ icon: 'check', title: 'Added to 3D World! Open 3D World tab to explore.' });
+        } else {
+          toast.addToast({ icon: 'warning-triangle', title: 'Failed to add 3D model.' });
+        }
+      } else if (shape.props.threeJsCode) {
+        try {
+          const res = await fetch("http://localhost:8000/api/cerebras/parse", {
+            method: "POST",
+            body: shape.props.threeJsCode
+          });
+          const actualCode = await res.json();
+          const objectCode = actualCode.content;
+
+          const obj = addObjectFromCode(objectCode);
+          if (obj) {
+            obj.userData.tldrawShapeId = shape.id;
+            if (!(window as any).__shapeToObjectMap) {
+              (window as any).__shapeToObjectMap = new Map();
+            }
+            (window as any).__shapeToObjectMap.set(shape.id, obj.uuid);
+            toast.addToast({ icon: 'check', title: 'Added to 3D World! Open 3D World tab to explore.' });
+          } else {
+            toast.addToast({ icon: 'warning-triangle', title: 'Failed to add object.' });
+          }
+        } catch (err) {
+          toast.addToast({ icon: 'warning-triangle', title: 'Error adding to 3D World.' });
+        }
+      }
+    };
+
+    const handleRemoveFrom3DWorld = () => {
+      try {
+        const objectStore = useObjectStore.getState();
+        const map = (window as any).__shapeToObjectMap;
+        const mappedId = map ? map.get(shape.id) : null;
+        const targetObj = objectStore.objects.find(
+          o => o.id === shape.props.objectId || o.id === mappedId || (o as any).uuid === mappedId || o.userData?.tldrawShapeId === shape.id
+        );
+        if (targetObj) {
+          objectStore.removeObject(targetObj.id);
+          toast.addToast({ icon: 'check', title: 'Removed object from 3D World!' });
+        } else if (shape.props.objectId) {
+          objectStore.removeObject(shape.props.objectId);
+          toast.addToast({ icon: 'check', title: 'Removed object from 3D World!' });
+        } else if (mappedId) {
+          objectStore.removeObject(mappedId);
+          toast.addToast({ icon: 'check', title: 'Removed object from 3D World!' });
+        } else {
+          toast.addToast({ icon: 'warning-triangle', title: 'Object is not in 3D World.' });
+        }
+        if (map) map.delete(shape.id);
+      } catch (err) {
+        console.error("Error removing from 3D World:", err);
+      }
+    };
+
 
     return (
       <HTMLContainer className="tl-embed-container" id={shape.id}>
@@ -585,124 +665,14 @@ export class Model3DPreviewShapeUtil extends BaseBoxShapeUtil<Model3DPreviewShap
           />
           <Icon
             icon="plus"
-            onTouchStart={async () => {
-              if (shape.props.isGltf && shape.props.gltfUrl) {
-                // Handle GLTF model
-                if (activeTab !== 'threejs') {
-                  setActiveTab('threejs');
-                  // Wait for tab switch to complete before adding object
-                  setTimeout(() => {
-                    const result = addObjectWithGltf(shape.props.gltfUrl);
-                    if (!result) {
-                      toast.addToast({
-                        icon: 'warning-triangle',
-                        title: 'Failed to add 3D model.',
-                      });
-                    }
-                  }, 100); // Short delay to ensure tab context is ready
-                } else {
-                  // Already on threejs tab, add object directly
-                  const result = addObjectWithGltf(shape.props.gltfUrl);
-                  if (!result) {
-                    toast.addToast({
-                      icon: 'warning-triangle',
-                      title: 'Failed to add 3D model.',
-                    });
-                  }
-                }
-              } else if (shape.props.threeJsCode) {
-                // Handle ThreeJS code
-                const res = await fetch("http://localhost:8000/api/cerebras/parse", {
-                  method: "POST",
-                  body: shape.props.threeJsCode
-                });
-                const actualCode = await res.json();
-                console.log(actualCode);
-                const objectCode = actualCode.content;
-
-                if (activeTab !== 'threejs') {
-                  setActiveTab('threejs');
-                  // Wait for tab switch to complete before adding object
-                  setTimeout(() => {
-                    const result = addObjectFromCode(objectCode);
-                    if (!result) {
-                      toast.addToast({
-                        icon: 'warning-triangle',
-                        title: 'Failed to add object.',
-                      });
-                    }
-                  }, 100); // Short delay to ensure tab context is ready
-                } else {
-                  // Already on threejs tab, add object directly
-                  const result = addObjectFromCode(objectCode);
-                  if (!result) {
-                    toast.addToast({
-                      icon: 'warning-triangle',
-                      title: 'Failed to add object.',
-                    });
-                  }
-                }
-              }
-            }}
-            onClick={async () => {
-              if (shape.props.isGltf && shape.props.gltfUrl) {
-                // Handle GLTF model
-                if (activeTab !== 'threejs') {
-                  setActiveTab('threejs');
-                  // Wait for tab switch to complete before adding object
-                  setTimeout(() => {
-                    const result = addObjectWithGltf(shape.props.gltfUrl);
-                    if (!result) {
-                      toast.addToast({
-                        icon: 'warning-triangle',
-                        title: 'Failed to add 3D model.',
-                      });
-                    }
-                  }, 100); // Short delay to ensure tab context is ready
-                } else {
-                  // Already on threejs tab, add object directly
-                  const result = addObjectWithGltf(shape.props.gltfUrl);
-                  if (!result) {
-                    toast.addToast({
-                      icon: 'warning-triangle',
-                      title: 'Failed to add 3D model.',
-                    });
-                  }
-                }
-              } else if (shape.props.threeJsCode) {
-                // Handle ThreeJS code
-                const res = await fetch("http://localhost:8000/api/cerebras/parse", {
-                  method: "POST",
-                  body: shape.props.threeJsCode
-                });
-                const actualCode = await res.json();
-                console.log(actualCode);
-                const objectCode = actualCode.content;
-
-                if (activeTab !== 'threejs') {
-                  setActiveTab('threejs');
-                  // Wait for tab switch to complete before adding object
-                  setTimeout(() => {
-                    const result = addObjectFromCode(objectCode);
-                    if (!result) {
-                      toast.addToast({
-                        icon: 'warning-triangle',
-                        title: 'Failed to add object.',
-                      });
-                    }
-                  }, 100); // Short delay to ensure tab context is ready
-                } else {
-                  // Already on threejs tab, add object directly
-                  const result = addObjectFromCode(objectCode);
-                  if (!result) {
-                    toast.addToast({
-                      icon: 'warning-triangle',
-                      title: 'Failed to add object.',
-                    });
-                  }
-                }
-              }
-            }}
+            onTouchStart={handlePushTo3DWorld}
+            onClick={handlePushTo3DWorld}
+            onPointerDown={(e) => e.stopPropagation()}
+          />
+          <Icon
+            icon="trash"
+            onTouchStart={handleRemoveFrom3DWorld}
+            onClick={handleRemoveFrom3DWorld}
             onPointerDown={(e) => e.stopPropagation()}
           />
         </div>

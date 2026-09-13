@@ -301,32 +301,29 @@ export function StoredObjects() {
   useEffect(() => {
     console.log("Syncing objects to scene, count:", threeObjects.length);
     
-    // Add any new objects not yet in the scene
+    // Set of IDs that should currently exist in the scene
+    const currentActiveIds = new Set(threeObjects.map(o => o.userData.id || o.uuid));
+
+    // 1. Remove any objects from the scene that are no longer in threeObjects
+    objectRefs.current.forEach((obj, id) => {
+      if (!currentActiveIds.has(id)) {
+        console.log(`Removing deleted object from scene: ${id}`);
+        scene.remove(obj);
+        objectRefs.current.delete(id);
+      }
+    });
+
+    // 2. Add any new objects not yet in the scene
     threeObjects.forEach(obj => {
       if (!obj) return;
-      // Use uuid string for lookup — getObjectById uses numeric id which won't match
+      const objId = obj.userData.id || obj.uuid;
       const alreadyInScene = scene.getObjectByProperty('uuid', obj.uuid);
       if (!alreadyInScene) {
-        console.log(`Adding object to scene: ${obj.uuid}`);
+        console.log(`Adding object to scene: ${obj.uuid} (id: ${objId})`);
         scene.add(obj);
       }
-      objectRefs.current.set(obj.userData.id || obj.uuid, obj);
+      objectRefs.current.set(objId, obj);
     });
-    
-    // Capture snapshot for cleanup
-    const currentRefs = new Map(objectRefs.current);
-    const currentIds = new Set(threeObjects.map(o => o.userData.id || o.uuid));
-    
-    return () => {
-      // Remove objects that are no longer in the store
-      currentRefs.forEach((obj, id) => {
-        if (!currentIds.has(id)) {
-          console.log(`Removing object from scene: ${id}`);
-          scene.remove(obj);
-          objectRefs.current.delete(id);
-        }
-      });
-    };
   }, [scene, threeObjects]);
   
   // Only update the store when user explicitly changes objects via TransformControls

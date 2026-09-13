@@ -7,7 +7,7 @@ import { AutoDrawButton } from '@/components/AutoDrawButton'
 import { ImproveDrawingButton } from '@/components/ImproveDrawingButton'
 import { PreviewShapeUtil } from '@/PreviewShape/PreviewShape'
 import { Model3DPreviewShapeUtil } from '@/PreviewShape/Model3DPreviewShape'
-import { useTabStore } from '@/store/appStore'
+import { useTabStore, useObjectStore } from '@/store/appStore'
 import { TldrawLogo } from '@/components/TldrawLogo'
 
 const ThreeJSCanvas = dynamic(() => import('@/components/three/canvas'), {
@@ -91,7 +91,39 @@ export default function App() {
 					<Tldraw
 						persistenceKey="vibe-3d-code"
 						onMount={(editor) => {
-							editor.setCurrentTool('draw')
+							editor.setCurrentTool('draw');
+							(window as any).__tldraw_editor = editor;
+
+							// Global deletion sync: when a model3d shape is deleted, remove corresponding 3D object
+							editor.store.listen((entry) => {
+								if (entry.changes && entry.changes.removed) {
+									const removedRecords = Object.values(entry.changes.removed);
+									for (const record of removedRecords) {
+										if (record && record.typeName === 'shape' && (record as any).type === 'model3d') {
+											const shapeId = record.id;
+											console.log("tldraw deleted 2D model3d shape:", shapeId);
+											const objectStore = useObjectStore.getState();
+											const map = (window as any).__shapeToObjectMap;
+											const mappedId = map ? map.get(shapeId) : null;
+											const targetObj = objectStore.objects.find(
+												o => o.id === (record as any).props?.objectId || 
+												     o.id === mappedId || 
+												     (o as any).uuid === mappedId || 
+												     o.userData?.tldrawShapeId === shapeId
+											);
+											if (targetObj) {
+												console.log("Syncing deletion to 3D world:", targetObj.id);
+												objectStore.removeObject(targetObj.id);
+											} else if ((record as any).props?.objectId) {
+												objectStore.removeObject((record as any).props.objectId);
+											} else if (mappedId) {
+												objectStore.removeObject(mappedId);
+											}
+											if (map) map.delete(shapeId);
+										}
+									}
+								}
+							});
 						}}
 						shareZone={
 							<div style={{ display: 'flex' }}>
