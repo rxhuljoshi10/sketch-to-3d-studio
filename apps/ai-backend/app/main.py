@@ -175,34 +175,23 @@ async def parse_code(request: Request):
 
 @app.post("/api/trellis/task")
 async def create_trellis_task(request: TrellisTaskRequest):
-    """Initiates a GLTF mesh generation task."""
+    """Trellis is not yet integrated. Redirect to Gemini generation path."""
     task_id = task_manager.create_task()
     return {"data": {"task_id": task_id}}
 
 @app.websocket("/api/trellis/task/ws/{task_id}")
 async def trellis_websocket(websocket: WebSocket, task_id: str):
-    """WebSocket connection for tracking Trellis GLTF generation progress."""
+    """Trellis GLTF generation is not yet available. Returns an error."""
     await websocket.accept()
     try:
-        await websocket.send_json({"status": "in_progress", "message": "Synthesizing 3D mesh..."})
-        await asyncio.sleep(2.0)
-        await websocket.send_json({"status": "in_progress", "message": "Texturing 3D model..."})
-        await asyncio.sleep(2.0)
-
-        # Sample high-quality GLB asset URL for testing/interactive visualization
-        sample_glb = "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb"
         await websocket.send_json({
-            "status": "completed",
-            "data": sample_glb
+            "status": "failed",
+            "message": "GLTF generation via Trellis is not yet available. Please use the standard Make 3D path (toggle the brain icon OFF) to generate Three.js models via Gemini AI."
         })
     except WebSocketDisconnect:
         logger.info(f"Client disconnected from Trellis WebSocket {task_id}")
     except Exception as e:
         logger.error(f"WebSocket error for {task_id}: {e}")
-        try:
-            await websocket.send_json({"status": "failed", "message": str(e)})
-        except Exception:
-            pass
     finally:
         try:
             await websocket.close()
