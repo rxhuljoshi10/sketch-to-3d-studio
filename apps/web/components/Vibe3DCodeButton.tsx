@@ -9,7 +9,6 @@ export function Vibe3DCodeButton() {
   const { addToast } = useToasts()
   const [is3DModelSelected, setIs3DModelSelected] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [thinkingEnabled, setThinkingEnabled] = useState(false)
 
   // Update state whenever selection changes
   useEffect(() => {
@@ -31,12 +30,6 @@ export function Vibe3DCodeButton() {
     }
   }, [editor])
 
-  const handleToggleThinking = useCallback((e: React.MouseEvent) => {
-    // Stop event propagation to prevent button click
-    e.stopPropagation();
-    setThinkingEnabled(prev => !prev);
-  }, []);
-
   const handleClick = useCallback(async () => {
     if (isProcessing) return; // Prevent multiple clicks
 
@@ -56,8 +49,8 @@ export function Vibe3DCodeButton() {
 
       const model3dShape = selectedShapes.find(shape => shape.type === 'model3d') as Model3DPreviewShape;
 
-      if (is3DModelSelected && !thinkingEnabled) {
-        // Use edit3DCode (Claude) for editing existing models
+      if (is3DModelSelected) {
+        // Use edit3DCode for editing existing models
         if (!model3dShape) {
           throw Error('Could not find the selected 3D model.');
         }
@@ -70,9 +63,8 @@ export function Vibe3DCodeButton() {
           window.dispatchEvent(event);
         });
       } else {
-        // Use vibe3DCode (Trellis OR initial Claude)
-        // If it's selected, pass the shapeId to replace it
-        await vibe3DCode(editor, model3dShape?.id || undefined, thinkingEnabled);
+        // Generate new 3D model from sketch via Gemini AI
+        await vibe3DCode(editor, model3dShape?.id || undefined, false);
       }
     } catch (e) {
       console.error(e)
@@ -84,7 +76,7 @@ export function Vibe3DCodeButton() {
     } finally {
       setIsProcessing(false);
     }
-  }, [editor, addToast, is3DModelSelected, isProcessing, thinkingEnabled]);
+  }, [editor, addToast, is3DModelSelected, isProcessing]);
 
   // 3D cube icon as an SVG
   const CubeIcon = () => (
@@ -93,94 +85,31 @@ export function Vibe3DCodeButton() {
       height="16"
       viewBox="0 0 24 24"
       fill="none"
-      stroke={thinkingEnabled ? "url(#cubeGradient)" : "currentColor"}
+      stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <defs>
-        <linearGradient id="cubeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#ff80ff" />
-          <stop offset="100%" stopColor="#80ffff" />
-        </linearGradient>
-      </defs>
       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
       <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
       <line x1="12" y1="22.08" x2="12" y2="12" />
     </svg>
   )
 
-  // Brain icon for AI
-  const BrainIcon = () => (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={thinkingEnabled ? "url(#brainGradient)" : "rgba(255,255,255,0.5)"}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ opacity: thinkingEnabled ? 1 : 0.6 }}
-    >
-      <defs>
-        <linearGradient id="brainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#ff80ff" />
-          <stop offset="100%" stopColor="#80ffff" />
-        </linearGradient>
-      </defs>
-      <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-1.04Z"></path>
-      <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-1.04Z"></path>
-    </svg>
-  )
-
-  // Toggle switch component
-  const ToggleSwitch = ({ enabled, onClick }: { enabled: boolean, onClick: (e: React.MouseEvent) => void }) => (
-    <div
-      onClick={onClick}
-      title={enabled ? "GLTF Mesh Mode (Experimental)" : "Gemini AI 3D Code Mode (Default)"}
-      style={{
-        position: 'relative',
-        width: '36px',
-        height: '18px',
-        borderRadius: '10px',
-        backgroundColor: enabled ? '#a855f7' : 'rgba(255,255,255,0.15)',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-        marginLeft: '5px',
-        border: `1px solid ${enabled ? '#c084fc' : 'rgba(255,255,255,0.25)'}`,
-        display: 'flex',
-        alignItems: 'center',
-        padding: '1px',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          left: enabled ? '18px' : '2px',
-          width: '14px',
-          height: '14px',
-          borderRadius: '50%',
-          backgroundColor: '#fff',
-          transition: 'all 0.2s ease',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
-        }}
-      />
-    </div>
-  );
-
   return (
     <button
       className="vibe3DCodeButton"
       onClick={handleClick}
       disabled={isProcessing}
+      title="Convert selected sketch into interactive 3D model using Gemini AI"
       style={{
         marginLeft: '-3px',
-        padding: '6px 12px',
+        padding: '6px 14px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '3px',
+        gap: '6px',
+        cursor: isProcessing ? 'wait' : 'pointer',
       }}
     >
       {isProcessing ? (
@@ -201,39 +130,27 @@ export function Vibe3DCodeButton() {
               100% { transform: rotate(360deg); }
             }
           `}</style>
-          <span>{is3DModelSelected ? 'Editing...' : 'Creating...'}</span>
+          <span>{is3DModelSelected ? 'Editing...' : 'Creating 3D...'}</span>
         </>
       ) : (
         <>
           <CubeIcon />
-          <div style={{
-            display: 'flex',
-            alignItems: 'center'
-          }}>
-            <span>
-              {is3DModelSelected ? 'Edit 3D' : 'Make 3D'}
-            </span>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              marginLeft: '8px',
-              borderLeft: '1px solid rgba(255,255,255,0.3)',
-              paddingLeft: '8px',
-              height: '18px'
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '3px',
-              }}>
-                <BrainIcon />
-              </div>
-              <ToggleSwitch
-                enabled={thinkingEnabled}
-                onClick={handleToggleThinking}
-              />
-            </div>
-          </div>
+          <span style={{ fontWeight: 500 }}>
+            {is3DModelSelected ? 'Edit 3D' : 'Make 3D'}
+          </span>
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 600,
+              padding: '1px 6px',
+              borderRadius: '9999px',
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              color: '#ffffff',
+              letterSpacing: '0.02em',
+            }}
+          >
+            Gemini AI
+          </span>
         </>
       )}
     </button>

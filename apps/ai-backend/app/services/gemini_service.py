@@ -59,10 +59,16 @@ class GeminiService:
             return self._generate_fallback_code(prompt or "Object")
 
         try:
-            model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
-                system_instruction=SKETCH_TO_3D_SYSTEM_PROMPT,
-            )
+            try:
+                model = genai.GenerativeModel(
+                    model_name="gemini-3.6-flash",
+                    system_instruction=SKETCH_TO_3D_SYSTEM_PROMPT,
+                )
+            except Exception:
+                model = genai.GenerativeModel(
+                    model_name="gemini-flash-latest",
+                    system_instruction=SKETCH_TO_3D_SYSTEM_PROMPT,
+                )
             contents = [
                 image,
                 f"Convert this sketch into an interactive Three.js 3D model. Additional description/notes: {prompt or 'None'}",
@@ -82,10 +88,16 @@ class GeminiService:
             return existing_code
 
         try:
-            model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
-                system_instruction=EDIT_3D_SYSTEM_PROMPT,
-            )
+            try:
+                model = genai.GenerativeModel(
+                    model_name="gemini-3.6-flash",
+                    system_instruction=EDIT_3D_SYSTEM_PROMPT,
+                )
+            except Exception:
+                model = genai.GenerativeModel(
+                    model_name="gemini-flash-latest",
+                    system_instruction=EDIT_3D_SYSTEM_PROMPT,
+                )
             contents = [
                 image,
                 f"Existing Three.js code:\n```javascript\n{existing_code}\n```\n\nModification notes: {prompt or 'Update model based on new sketch'}",
@@ -109,10 +121,16 @@ class GeminiService:
             return self._generate_fallback_object_code()
 
         try:
-            model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash",
-                system_instruction=CODE_PARSER_SYSTEM_PROMPT,
-            )
+            try:
+                model = genai.GenerativeModel(
+                    model_name="gemini-3.6-flash",
+                    system_instruction=CODE_PARSER_SYSTEM_PROMPT,
+                )
+            except Exception:
+                model = genai.GenerativeModel(
+                    model_name="gemini-flash-latest",
+                    system_instruction=CODE_PARSER_SYSTEM_PROMPT,
+                )
             response = model.generate_content(
                 f"Extract the object creation JavaScript code from this Three.js script:\n```javascript\n{raw_code}\n```"
             )
