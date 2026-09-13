@@ -117,10 +117,11 @@ export function Vibe3DCodeButton() {
       height="14"
       viewBox="0 0 24 24"
       fill="none"
-      stroke={thinkingEnabled ? "url(#brainGradient)" : "white"}
+      stroke={thinkingEnabled ? "url(#brainGradient)" : "rgba(255,255,255,0.5)"}
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      style={{ opacity: thinkingEnabled ? 1 : 0.6 }}
     >
       <defs>
         <linearGradient id="brainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -137,16 +138,17 @@ export function Vibe3DCodeButton() {
   const ToggleSwitch = ({ enabled, onClick }: { enabled: boolean, onClick: (e: React.MouseEvent) => void }) => (
     <div
       onClick={onClick}
+      title={enabled ? "GLTF Mesh Mode (Experimental)" : "Gemini AI 3D Code Mode (Default)"}
       style={{
         position: 'relative',
         width: '36px',
         height: '18px',
         borderRadius: '10px',
-        backgroundColor: enabled ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.15)',
+        backgroundColor: enabled ? '#a855f7' : 'rgba(255,255,255,0.15)',
         cursor: 'pointer',
         transition: 'all 0.2s',
         marginLeft: '5px',
-        border: '1px solid rgba(255,255,255,0.3)',
+        border: `1px solid ${enabled ? '#c084fc' : 'rgba(255,255,255,0.25)'}`,
         display: 'flex',
         alignItems: 'center',
         padding: '1px',
@@ -161,7 +163,7 @@ export function Vibe3DCodeButton() {
           borderRadius: '50%',
           backgroundColor: '#fff',
           transition: 'all 0.2s ease',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+          boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
         }}
       />
     </div>
