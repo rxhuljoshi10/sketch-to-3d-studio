@@ -144,86 +144,113 @@ export async function improveDrawing(editor: Editor) {
   }
 }
 
-// Function to wait for the image generation to complete via SSE
+// Function to wait for the image generation to complete via SSE with polling fallback
 async function waitForImageGeneration(taskId: string): Promise<GeneratedImageData | null> {
   return new Promise((resolve, reject) => {
     let timeout: NodeJS.Timeout | null = null
+    let pollInterval: NodeJS.Timeout | null = null
+    let eventSource: EventSource | null = null
+    let isSettled = false
 
-    try {
-      const eventSource = new EventSource(`http://localhost:8000/api/subscribe/${taskId}`)
-
-      // 60-second timeout
-      timeout = setTimeout(() => {
-        console.warn('Image generation timed out, closing SSE connection')
+    const cleanup = () => {
+      isSettled = true
+      if (timeout) {
+        clearTimeout(timeout)
+        timeout = null
+      }
+      if (pollInterval) {
+        clearInterval(pollInterval)
+        pollInterval = null
+      }
+      if (eventSource) {
         eventSource.close()
-        reject(new Error('Vector improvement timed out. Please try again.'))
-      }, 60000)
+        eventSource = null
+      }
+    }
 
-      const cleanup = () => {
-        if (timeout) {
-          clearTimeout(timeout)
-          timeout = null
+    const handlePayload = (data: any) => {
+      if (isSettled || !data) return
+
+      if (data.status === 'completed') {
+        const image = data.image || (data.images && data.images[0]?.image_base64)
+        if (image) {
+          cleanup()
+          resolve({
+            image,
+            mimeType: data.mime_type || (data.svg ? 'image/svg+xml' : 'image/png'),
+            svg: data.svg,
+            width: data.width || 500,
+            height: data.height || 500,
+          })
         }
-        eventSource.close()
+      } else if (data.status === 'failed' || data.status === 'error') {
+        cleanup()
+        reject(new Error(data.message || data.error || 'Vector improvement failed'))
+      }
+    }
+
+    // 1. Set a safety timeout (90 seconds)
+    timeout = setTimeout(() => {
+      if (!isSettled) {
+        cleanup()
+        reject(new Error('Vector improvement timed out. Please try again.'))
+      }
+    }, 90000)
+
+    // 2. Poll /api/task/{taskId} every 1s as a reliable fallback
+    pollInterval = setInterval(async () => {
+      if (isSettled) return
+      try {
+        const res = await fetch(`http://localhost:8000/api/task/${taskId}`)
+        if (res.ok) {
+          const taskData = await res.json()
+          handlePayload(taskData)
+        }
+      } catch (err) {
+        // Ignore transient poll fetch errors while task is running
+      }
+    }, 1200)
+
+    // 3. Connect to SSE
+    try {
+      eventSource = new EventSource(`http://localhost:8000/api/subscribe/${taskId}`)
+
+      // Handle standard message events (how completed events are emitted by TaskManager)
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          handlePayload(data)
+        } catch (e) {
+          console.warn('Could not parse SSE message:', e)
+        }
       }
 
-      eventSource.addEventListener('start', () => {
-        console.log('Vector sketch improvement started')
-      })
-
+      // Handle named "complete" events
       eventSource.addEventListener('complete', (event) => {
         try {
           const data = JSON.parse((event as MessageEvent).data)
-          console.log('Complete event received:', data)
-
-          if (data.image) {
-            resolve({
-              image: data.image,
-              mimeType: data.mime_type || (data.svg ? 'image/svg+xml' : 'image/png'),
-              svg: data.svg,
-              width: data.width || 500,
-              height: data.height || 500,
-            })
-          } else if (data.images && data.images.length > 0) {
-            const img = data.images[0]
-            resolve({
-              image: img.image_base64,
-              mimeType: img.mime_type || data.mime_type || 'image/png',
-              width: img.width || 500,
-              height: img.height || 500,
-            })
-          } else {
-            resolve(null)
-          }
-        } catch (error) {
-          console.error('Error parsing complete event:', error)
-          reject(error)
-        } finally {
-          cleanup()
+          handlePayload(data)
+        } catch (e) {
+          console.warn('Could not parse complete event:', e)
         }
       })
 
+      // Handle named "error" events
       eventSource.addEventListener('error', (event) => {
-        console.error('SSE error event received')
         try {
           const data = JSON.parse((event as MessageEvent).data)
-          reject(new Error(data.error || data.message || 'Error improving sketch'))
+          handlePayload(data)
         } catch {
-          reject(new Error('Error during vector sketch improvement'))
-        } finally {
-          cleanup()
+          // Normal SSE reconnect or close, pollInterval will continue
         }
       })
 
-      eventSource.onerror = (error) => {
-        console.error('SSE connection error:', error)
-        reject(new Error('Error connecting to AI backend'))
-        cleanup()
+      eventSource.onerror = () => {
+        // SSE network error or auto-reconnect; let fallback polling handle it
+        console.log('SSE connection issue, relying on fallback polling...')
       }
     } catch (err) {
-      console.error('Error setting up SSE connection:', err)
-      if (timeout) clearTimeout(timeout)
-      reject(err)
+      console.warn('EventSource initialization failed, fallback polling is active:', err)
     }
   })
 }

@@ -170,6 +170,13 @@ async def subscribe_task(task_id: str):
         }
     )
 
+@app.get("/api/task/{task_id}")
+async def get_task_status(task_id: str):
+    task = task_manager.get_task(task_id)
+    if not task:
+        return JSONResponse({"status": "not_found", "message": "Task not found"}, status_code=404)
+    return task
+
 @app.post("/api/cerebras/parse")
 async def parse_code(request: Request):
     """

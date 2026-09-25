@@ -112,10 +112,13 @@ class ImageService:
         for model_name in models_to_try:
             try:
                 logger.info(f"Generating polished vector SVG with model: {model_name}")
-                response = await asyncio.to_thread(
-                    self._genai_client.models.generate_content,
-                    model=model_name,
-                    contents=[prompt, pil_image],
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self._genai_client.models.generate_content,
+                        model=model_name,
+                        contents=[prompt, pil_image],
+                    ),
+                    timeout=22.0
                 )
 
                 if response and response.text:
@@ -141,6 +144,9 @@ class ImageService:
                         }
                     else:
                         logger.warning(f"Model {model_name} did not include <svg> tag in response.")
+            except asyncio.TimeoutError:
+                logger.warning(f"Model {model_name} timed out after 22s, trying next model...")
+                continue
             except Exception as e:
                 logger.warning(f"Model {model_name} failed: {e}")
                 continue
