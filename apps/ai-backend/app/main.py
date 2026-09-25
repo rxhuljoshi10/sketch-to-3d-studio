@@ -47,6 +47,8 @@ class QueueEditRequest(BaseModel):
 class QueueImageRequest(BaseModel):
     prompt: Optional[str] = None
     image_base64: str
+    width: Optional[int] = None
+    height: Optional[int] = None
 
 class TrellisTaskRequest(BaseModel):
     model: Optional[str] = "Qubico/trellis"
@@ -87,25 +89,34 @@ async def process_3d_edit(task_id: str, existing_code: str, image_b64: str, prom
         logger.error(f"Failed processing edit task {task_id}: {e}")
         await task_manager.emit(task_id, {"status": "failed", "message": str(e)}, event_type="error")
 
-async def process_image_improvement(task_id: str, image_b64: str, prompt: Optional[str]):
+async def process_image_improvement(task_id: str, image_b64: str, prompt: Optional[str], width: Optional[int] = None, height: Optional[int] = None):
     try:
-        await task_manager.emit(task_id, {"status": "in_progress", "message": "Enhancing sketch with generative FLUX..."}, event_type="start")
+        await task_manager.emit(task_id, {"status": "in_progress", "message": "Polishing vector sketch with Gemini AI..."}, event_type="start")
 
-        result = await image_service.improve_sketch(image_b64, prompt)
+        result = await image_service.improve_sketch(
+            image_b64,
+            prompt,
+            width=width or 500,
+            height=height or 500,
+        )
 
+        mime_type = result.get("mime_type", "image/png")
         await task_manager.emit(task_id, {
             "status": "completed",
             "image": result["image"],
+            "mime_type": mime_type,
+            "svg": result.get("svg"),
             "images": [
                 {
                     "image_base64": result["image"],
-                    "width": result.get("width", 800),
-                    "height": result.get("height", 600),
+                    "mime_type": mime_type,
+                    "width": result.get("width", 500),
+                    "height": result.get("height", 500),
                 }
             ],
-            "width": result.get("width", 800),
-            "height": result.get("height", 600),
-            "message": "Sketch enhanced successfully!"
+            "width": result.get("width", 500),
+            "height": result.get("height", 500),
+            "message": "Sketch improved into clean vector artwork!"
         }, event_type="complete")
     except Exception as e:
         logger.error(f"Failed processing image task {task_id}: {e}")
@@ -137,7 +148,14 @@ async def queue_edit(request: QueueEditRequest, background_tasks: BackgroundTask
 @app.post("/api/queue/image")
 async def queue_image(request: QueueImageRequest, background_tasks: BackgroundTasks):
     task_id = task_manager.create_task()
-    background_tasks.add_task(process_image_improvement, task_id, request.image_base64, request.prompt)
+    background_tasks.add_task(
+        process_image_improvement,
+        task_id,
+        request.image_base64,
+        request.prompt,
+        request.width,
+        request.height,
+    )
     return {"task_id": task_id}
 
 @app.get("/api/subscribe/{task_id}")
