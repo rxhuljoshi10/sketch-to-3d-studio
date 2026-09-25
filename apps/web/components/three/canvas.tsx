@@ -16,6 +16,7 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { useThree } from '@react-three/fiber'
 import { Ocean } from '@/components/three/Ocean'
 import { useObjectStore } from '@/store/appStore'
+import { ObjectPropertiesPanel } from '@/components/three/ObjectPropertiesPanel'
 
 const FocusDetector = () => {
   const { setUIFocused } = useAppStore()
@@ -23,8 +24,13 @@ const FocusDetector = () => {
   useEffect(() => {
     const handleFocusChange = () => {
       const activeElement = document.activeElement
-      const isInput = activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA'
-      setUIFocused(isInput)
+      const isInput =
+        activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        // Treat number inputs inside the properties panel as UI-focused too
+        (activeElement?.tagName === 'INPUT' &&
+          (activeElement as HTMLInputElement).closest('#object-properties-panel') !== null)
+      setUIFocused(!!isInput)
     }
 
     document.addEventListener('focusin', handleFocusChange)
@@ -146,7 +152,7 @@ export default function ThreeJSCanvas({
 }: {
   visible?: boolean
 }) {
-  const { objects, removeObject, clearObjects } = useObjectStore()
+  const { objects, clearObjects } = useObjectStore()
   const { selectedObject, setSelectedObject } = useAppStore()
   const [showObjectsManager, setShowObjectsManager] = useState(false)
 
@@ -253,6 +259,7 @@ export default function ThreeJSCanvas({
         <>
           <FocusDetector />
           <Crosshair />
+          <ObjectPropertiesPanel />
 
           {/* Floating Action Buttons */}
           <div style={{ position: 'absolute', bottom: '20px', left: '20px', display: 'flex', gap: '8px', zIndex: 100 }}>
@@ -437,56 +444,6 @@ export default function ThreeJSCanvas({
             </div>
           )}
 
-          {/* Floating Selected Object Bar */}
-          {selectedObject && (
-            <div
-              style={{
-                position: 'fixed',
-                top: '75px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                background: 'rgba(15, 23, 42, 0.88)',
-                backdropFilter: 'blur(12px)',
-                border: '1px solid rgba(56, 189, 248, 0.4)',
-                borderRadius: '8px',
-                padding: '7px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                zIndex: 9999,
-                color: 'white',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
-                fontFamily: 'system-ui, sans-serif',
-                fontSize: '12px'
-              }}
-            >
-              <span>Selected: <strong style={{ color: '#38bdf8' }}>{selectedObject.userData?.name || 'Object'}</strong></span>
-              <button
-                onClick={() => {
-                  const targetId = selectedObject.uuid || selectedObject.userData?.id;
-                  if (targetId) {
-                    removeObject(targetId);
-                  }
-                  setSelectedObject(null);
-                }}
-                style={{
-                  background: '#dc2626',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  padding: '3px 9px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                🗑️ Delete Object
-              </button>
-            </div>
-          )}
 
           {/* 3D World Controls Guide HUD */}
           <div
